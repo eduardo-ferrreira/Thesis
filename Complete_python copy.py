@@ -1,84 +1,80 @@
 import numpy as np
-from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
-import math
-import pyvisa
-#import usb.core
-import time
-import urllib.request
-import functools as ft
-import multiprocessing
-import threading
-import queue
 from scipy import optimize
+from scipy.optimize import fsolve
+import math
+import pyvisa #para comunicar com os geradores de pulsos/corrente       
+import time #operações relacionadas com tempo
+import urllib.request #para abrir URLs 
+import functools as ft #operações complexas
+import multiprocessing #para aumentar velocidade de cálculo
+import threading # para aumentar velocidade de cálculo
+import queue # para aumentar velocidade de cálculo
 import random
+from IPython.display import display #for the display of the current k and counts
 
 rm = pyvisa.ResourceManager()
 
 instrument = rm.open_resource('USB0::0x0699::0x0358::C018403::INSTR')
 keithley = rm.open_resource('USB0::0x05E6::0x2450::04608397::INSTR')
 
+
 def function(a): ##This function removes the unwanted strings from the Yokogawa Values converting them into floats
     assert type(a) == str
     b = list(a.strip())
     return float(ft.reduce(lambda x, y: x + y, list(filter(lambda x: x.isdigit() or x == '.' or x == '-', b))))
+
 
 def values(website, positions, result_queue): ###This function helps us get the values from the Yokogawa by putting its site in what positions are the the values taken from it and then put it in a queue for multithreading
     web_url = urllib.request.urlopen(website)
     content = str(web_url.read())
     values_list = [function(content[i[0]:i[1]]) for i in positions] #positions is the list of lists with the voltage readings
     result_queue.put(values_list) #multithreading
+
 a=time.perf_counter()
 print(time.perf_counter()-a, 's') 
 
-def AFG_signals(p,limit,initial_values,result_queue): 
-    b=time.time()
-    c=time.perf_counter()
-    w=0
-    while time.time()-b<limit:
+
+def AFG_signals(p, limit, initial_values, result_queue): 
+    
+    b = time.time()
+    c = time.perf_counter()
+    w = 0
+
+    while time.time()-b < limit:
          ## continua a mandar sinais de tensao ate 1MHz para a source Range, limit é dado pelo tempo médio de leitura do yokogawa
-        initial_values=coefficients_solver(initial_values,abs(time.perf_counter()-c+w),p) #coefficients_solver resolver o sistema de ODE's
-        c=(time.perf_counter())
-        w=initial_values[-1]
+        initial_values = coefficients_solver(initial_values, abs(time.perf_counter()-c+w), p) #coefficients_solver resolver o sistema de ODE's
+        c = (time.perf_counter())
+        w = initial_values[-1]
         del initial_values[-1]
-    current = 100*10**-12/(5*10**3)*initial_values[0] #current-counts proportionality, 5kcps<->100pA
-    if initial_values[0]<2*10**4: #limite do loglin é 20kcps
-        instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-        instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
+
+    current = 100*10**-12 / (20*10**3) * initial_values[0] #current-counts proportionality, 5kcps<->100pA
+    
+    if initial_values[0] < 3*10**4: #rods inhibit safety action takes place at 50kcps, stop sending signals at 
+        instrument.write('SOUR1:FREQ' + str(initial_values[0]) + 'Hz') #writes in the afg the value of the counts given by the coefficients_solver
+        instrument.write('SOUR2:FREQ' + str(initial_values[0]) + 'Hz')
         instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
         instrument.write('SOUR2:PULS:WIDTH 200ns')
-    elif 2*10**4<initial_values[0]<8*10**4: #limite do source range é 10^6 mas decidir deixar de enviar a partir de 8kcps
-        instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-        instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
-        instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
-        instrument.write('SOUR2:PULS:WIDTH 200ns')
+    #elif 2*10**4 < initial_values[0] < 4*10**4: #limite do source range é 10^6 mas decidir deixar de enviar a partir de 40kcps devido ao rods inhibit
+    #    instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
+    #    instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
+    #    instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
+    #    instrument.write('SOUR2:PULS:WIDTH 200ns')
         keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
         keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
         keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
 
     ### Eduardo tu depois vais ter de por o comando para o gerador de sinais, usar mesma função para a fonte de corrente se possível
     else:
-        instrument.write('SOUR1:FREQ '+str(900000*(1+(0.1-0.2*random.random())))+'Hz')
-        instrument.write('SOUR2:FREQ '+str(900000*(1+(0.1-0.2*random.random())))+'Hz')
+        instrument.write('SOUR1:FREQ' + str(3 * 10**4) + 'Hz') #(1+(0.1-0.2*random.random())) 
+        instrument.write('SOUR2:FREQ' + str(3 * 10**4) + 'Hz') #noise removed for now
         instrument.write('SOUR1:PULS:WIDTH 200ns')
         instrument.write('SOUR2:PULS:WIDTH 200ns')
         keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
         keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
         keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
     result_queue.put(initial_values) #multithreading 
-
-def Promecium(y_Nd,Sigma_f,L_p,counts,P0,t): ## Funcao que da densidade do Promecium
-    return ((y_Nd*Sigma_f*counts)/(L_p))*(1-math.exp(-L_p*t))+P0*math.exp(-L_p*t)    
-
-def Samarium(S0,o_a,y_Nd,Sigma_f,counts,P0,L_p,t): # Funcao que da densidade do Samarium 
-    return S0*math.exp(-o_a*t)+(y_Nd*Sigma_f/o_a)*(1-math.exp(-o_a*counts*t))-((y_Nd*Sigma_f*counts-L_p*P0)/(L_p-o_a*counts))*(math.exp(-o_a*counts*t)-math.exp(L_p*t))
-
-def Iodine(I0,L_I,y_Te,Sigma_f,counts,t): ###Funcao que dá a densidade do Iodine
-    return ((y_Te*Sigma_f*counts)/(L_I))*(1-math.exp(-L_I*t))+I0*math.exp(-L_I*t)
-
-def Xenon(I0,X0,L_I,L_X,y_Te,y_Xe,Sigma_f,o_a,counts,t): ### Função que dá a densidade do Xénon
-    return (((y_Te+y_Xe)*Sigma_f*counts)/(L_X+o_a*counts))*(1-math.exp(-L_X*t-o_a**counts*t))+((y_Te*Sigma_f*counts-L_I*I0)/(L_X-L_I+o_a*counts))*(math.exp(-L_X*t-o_a*counts*t)-math.exp(-L_I*t))+X0*math.exp(-(L_X+o_a*counts))
 
 def threadings(): ### Thread Inicial quando está no Subcritico Só lê o valor do SALMAO e do CARAPAU
     if __name__ == "__main__": #não recebe os valores das ODE's porque no canal de arranque basta usar a progressão geométrica. não se resolvem as ODE's
@@ -101,8 +97,8 @@ def threadings(): ### Thread Inicial quando está no Subcritico Só lê o valor 
         results = []
         while not result_queue.empty():
             results.append(result_queue.get())
-    if len(results[1])>len(results[0]):
-        results=[results[1],results[0]] #ensure that the order of the readings is [carapau, salmao]
+    if len(results[1]) > len(results[0]):
+        results=[results[1], results[0]] #ensure that the order of the readings is [carapau, salmao]
     return results #readings from carapau and salmao
 
 def threadings1(p,limit,initial_values): #Quando passa para o estado supercritico Posição das barras mede e depois lê no Yokogawa ao mesmo tempo que está a ler ele corre as equações para temos um tempo mais pequeno
@@ -134,81 +130,18 @@ def threadings1(p,limit,initial_values): #Quando passa para o estado supercritic
     results.append(result_queue1.get())
     return results
 
-#### Valores experimentais do RPI
-Lambda = [0.0127, 0.0317, 0.116, 0.311, 1.4, 3.87] ## constante de decaimento
-beta = [0.00031, 0.00166, 0.00151, 0.00328, 0.00103, 0.00021]
+#### Valores experimentais do RPI Matos et al
+Lambda = [0.0127, 0.0317, 0.116, 0.311, 1.4, 3.87] ## decay constant
+beta = [0.00031, 0.00166, 0.00151, 0.00328, 0.00103, 0.00021] # delayed neutron fractions
 l = 0.00002 ### prompt neutrons
-epsilon=1
+epsilon = 1
 
-ld=l*(1-sum(beta))+beta[0]*(1/Lambda[0])+beta[1]*(1/Lambda[1])+beta[2]*(1/Lambda[2])+beta[3]*(1/Lambda[3])+beta[4]*(1/Lambda[4])+beta[5]*(1/Lambda[5]) #slow decay lifetime
+ld = l*(1-sum(beta))+beta[0]*(1/Lambda[0])+beta[1]*(1/Lambda[1])+beta[2]*(1/Lambda[2])+beta[3]*(1/Lambda[3])+beta[4]*(1/Lambda[4])+beta[5]*(1/Lambda[5]) #slow decay lifetime
 #######
-#print(Beta,LAMBDA)
-
-def Range_Kutta_nuclear(y,init_values,h,p): #### Deixei o Range-Kutta só para caso alguém quiser mudar com coeficients
-    K1_0=h*y[0](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6],p)
-    K1_1=h*y[1](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K1_2=h*y[2](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K1_3=h*y[3](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K1_4=h*y[4](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K1_5=h*y[5](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K1_6=h*y[6](init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6])
-    K2_0=h*y[0](init_values[0]+K1_0/2,init_values[1]+K1_0/2,init_values[2]+K1_0/2,init_values[3]+K1_0/2,init_values[4]+K1_0/2,init_values[5]+K1_0/2,init_values[6]+K1_0/2,p)
-    K2_1=h*y[1](init_values[0]+K1_1/2,init_values[1]+K1_1/2,init_values[2]+K1_1/2,init_values[3]+K1_1/2,init_values[4]+K1_1/2,init_values[5]+K1_1/2,init_values[6]+K1_1/2)
-    K2_2=h*y[2](init_values[0]+K1_2/2,init_values[1]+K1_2/2,init_values[2]+K1_2/2,init_values[3]+K1_2/2,init_values[4]+K1_2/2,init_values[5]+K1_2/2,init_values[6]+K1_2/2)
-    K2_3=h*y[3](init_values[0]+K1_3/2,init_values[1]+K1_3/2,init_values[2]+K1_3/2,init_values[3]+K1_3/2,init_values[4]+K1_3/2,init_values[5]+K1_3/2,init_values[6]+K1_3/2)
-    K2_4=h*y[4](init_values[0]+K1_4/2,init_values[1]+K1_4/2,init_values[2]+K1_4/2,init_values[3]+K1_4/2,init_values[4]+K1_4/2,init_values[5]+K1_4/2,init_values[6]+K1_4/2)
-    K2_5=h*y[5](init_values[0]+K1_5/2,init_values[1]+K1_5/2,init_values[2]+K1_5/2,init_values[3]+K1_5/2,init_values[4]+K1_5/2,init_values[5]+K1_5/2,init_values[6]+K1_5/2)
-    K2_6=h*y[6](init_values[0]+K1_6/2,init_values[1]+K1_6/2,init_values[2]+K1_6/2,init_values[3]+K1_6/2,init_values[4]+K1_6/2,init_values[5]+K1_6/2,init_values[6]+K1_6/2)
-    K3_0=h*y[0](init_values[0]+K2_0/2,init_values[1]+K2_0/2,init_values[2]+K2_0/2,init_values[3]+K2_0/2,init_values[4]+K2_0/2,init_values[5]+K2_0/2,init_values[6]+K2_0/2,p)
-    K3_1=h*y[1](init_values[0]+K2_1/2,init_values[1]+K2_1/2,init_values[2]+K2_1/2,init_values[3]+K2_1/2,init_values[4]+K2_1/2,init_values[5]+K2_1/2,init_values[6]+K2_1/2)
-    K3_2=h*y[2](init_values[0]+K2_2/2,init_values[1]+K2_2/2,init_values[2]+K2_2/2,init_values[3]+K2_2/2,init_values[4]+K2_2/2,init_values[5]+K2_2/2,init_values[6]+K2_2/2)
-    K3_3=h*y[3](init_values[0]+K2_3/2,init_values[1]+K2_3/2,init_values[2]+K2_3/2,init_values[3]+K2_3/2,init_values[4]+K2_3/2,init_values[5]+K2_3/2,init_values[6]+K2_3/2)
-    K3_4=h*y[4](init_values[0]+K2_4/2,init_values[1]+K2_4/2,init_values[2]+K2_4/2,init_values[3]+K2_4/2,init_values[4]+K2_4/2,init_values[5]+K2_4/2,init_values[6]+K2_4/2)
-    K3_5=h*y[5](init_values[0]+K2_5/2,init_values[1]+K2_5/2,init_values[2]+K2_5/2,init_values[3]+K2_5/2,init_values[4]+K2_5/2,init_values[5]+K2_5/2,init_values[6]+K2_5/2)
-    K3_6=h*y[6](init_values[0]+K2_6/2,init_values[1]+K2_6/2,init_values[2]+K2_6/2,init_values[3]+K2_6/2,init_values[4]+K2_6/2,init_values[5]+K2_6/2,init_values[6]+K2_6/2)
-    K4_0=h*y[0](init_values[0]+K3_0,init_values[1]+K3_0,init_values[2]+K3_0,init_values[3]+K3_0,init_values[4]+K3_0,init_values[5]+K3_0,init_values[6]+K3_0,p)
-    K4_1=h*y[1](init_values[0]+K3_1,init_values[1]+K3_1,init_values[2]+K3_1,init_values[3]+K3_1,init_values[4]+K3_1,init_values[5]+K3_1,init_values[6]+K3_1)
-    K4_2=h*y[2](init_values[0]+K3_2,init_values[1]+K3_2,init_values[2]+K3_2,init_values[3]+K3_2,init_values[4]+K3_2,init_values[5]+K3_2,init_values[6]+K3_2)
-    K4_3=h*y[3](init_values[0]+K3_3,init_values[1]+K3_3,init_values[2]+K3_3,init_values[3]+K3_3,init_values[4]+K3_3,init_values[5]+K3_3,init_values[6]+K3_3)
-    K4_4=h*y[4](init_values[0]+K3_4,init_values[1]+K3_4,init_values[2]+K3_4,init_values[3]+K3_4,init_values[4]+K3_4,init_values[5]+K3_4,init_values[6]+K3_4)
-    K4_5=h*y[5](init_values[0]+K3_5,init_values[1]+K3_5,init_values[2]+K3_5,init_values[3]+K3_5,init_values[4]+K3_5,init_values[5]+K3_5,init_values[6]+K3_5)
-    K4_6=h*y[6](init_values[0]+K3_6,init_values[1]+K3_6,init_values[2]+K3_6,init_values[3]+K3_6,init_values[4]+K3_6,init_values[5]+K3_6,init_values[6]+K3_6)
-    init_values[0]=init_values[0]+K1_0/6+K2_0/3+K3_0/3+K4_0/6
-    init_values[1]=init_values[1]+K1_1/6+K2_1/3+K3_1/3+K4_1/6
-    init_values[2]=init_values[2]+K1_2/6+K2_2/3+K3_2/3+K4_2/6
-    init_values[3]=init_values[3]+K1_3/6+K2_3/3+K3_3/3+K4_3/6
-    init_values[4]=init_values[4]+K1_4/6+K2_4/3+K3_4/3+K4_4/6
-    init_values[5]=init_values[5]+K1_5/6+K2_5/3+K3_5/3+K4_5/6
-    init_values[6]=init_values[6]+K1_6/6+K2_6/3+K3_6/3+K4_6/6
-    return [init_values[0],init_values[1],init_values[2],init_values[3],init_values[4],init_values[5],init_values[6]]
-
-#### As sete funções kinematicas do comportamento dos neutrões 
-N=lambda  n,c1,c2,c3,c4,c5,c6,p: ((p-sum(beta))/l)*n+0.0127*c1+0.0317*c2+0.116*c3+0.311*c4+1.40*c5+3.87*c6
-C1=lambda n,c1,c2,c3,c4,c5,c6: (beta[0]/l)*n-0.0127*c1-0.0*c2-0*c3-0*c4-0*c5-0*c6
-C2=lambda n,c1,c2,c3,c4,c5,c6: (beta[1]/l)*n-0*c1-0.0317*c2-0*c3-0*c4-0*c5-0*c6
-C3=lambda n,c1,c2,c3,c4,c5,c6: (beta[2]/l)*n-0*c1-0*c2-0.116*c3-0*c4-0*c5-0*c6
-C4=lambda n,c1,c2,c3,c4,c5,c6: (beta[3]/l)*n-0.0*c1-0.0*c2-0*c3-0.311*c4-0*c5-0*c6
-C5=lambda n,c1,c2,c3,c4,c5,c6: (beta[4]/l)*n-0.0*c1-0.0*c2-0.0*c3-0*c4-1.40*c5-0*c6
-C6=lambda n,c1,c2,c3,c4,c5,c6: (beta[5]/l)*n-0.0*c1-0.0*c2-0.0*c3-0.0*c4-0*c5-3.87*c6
-###### Nice
 
 def root_mean_squared(x):
     assert type(x)==list
     return (sum(list(map(lambda y: y**2,x)))/len(x))**.5
-
-
-def taylor_polinomial(initial_values,interval,rhon): ###another method to solve these differential equations they work nice
-    start_time = time.perf_counter()
-    dN=((rhon-sum(beta))/l)*initial_values[0]+Lambda[0]*initial_values[1]+Lambda[1]*initial_values[2]+Lambda[2]*initial_values[3]+Lambda[3]*initial_values[4]+Lambda[4]*initial_values[5]+Lambda[5]*initial_values[6]
-    dC1=(beta[0]*initial_values[0])/(l)-Lambda[0]*initial_values[1]
-    dC2=(beta[1]*initial_values[0])/(l)-Lambda[1]*initial_values[2]
-    dC3=(beta[2]*initial_values[0])/(l)-Lambda[2]*initial_values[3]
-    dC4=(beta[3]*initial_values[0])/(l)-Lambda[3]*initial_values[4]
-    dC5=(beta[4]*initial_values[0])/(l)-Lambda[4]*initial_values[5]
-    dC6=(beta[5]*initial_values[0])/(l)-Lambda[5]*initial_values[6]
-    return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6,abs(time.perf_counter()-start_time)]
-
-
 
 ### Cubic spline  with the values of the teachers documents
 #to know the p corresponding to the rods position
@@ -225,11 +158,11 @@ cs_4=CubicSpline(x,y4)
 cs_r=CubicSpline(x,yr)
 ######
 
-def k(z,criticality):
-    assert type(z)==list and len(z)==5 #### determines the value of k com base das posições das barras
-    for i in range(0,len(z)):
-        z[i]=z[i]*20 #voltages readings from 0-5V, multiply by 20 to give in % reading
-    p=(cs_1(z[0])+cs_2(z[1])+cs_3(z[2])+cs_4(z[3])+cs_r(z[4])-criticality)*10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
+def k(z, criticality):
+    assert type(z) == list and len(z) == 5 #### determines the value of k com base das posições das barras
+    for i in range(0, len(z)):
+        z[i] = z[i] * 20 #voltages readings from 0-5V, multiply by 20 to give in % reading
+    p = (cs_1(z[0]) + cs_2(z[1]) + cs_3(z[2]) + cs_4(z[3]) + cs_r(z[4]) - criticality) * 10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
     return -1/(p-1) #returnin k
 
 def polinomial_solver(t, pol): #### determines the value of the polinomial (pol) at that instance of time equals t
@@ -239,6 +172,7 @@ def polinomial_solver(t, pol): #### determines the value of the polinomial (pol)
 
 def coefficients_solver(initial_values,time1,p): ### Using Sochaki-Parker using polinomials to get results
     start_time = time.perf_counter()
+
     a=[initial_values[0]]
     b=[initial_values[1]]
     c=[initial_values[2]]
@@ -246,6 +180,7 @@ def coefficients_solver(initial_values,time1,p): ### Using Sochaki-Parker using 
     e=[initial_values[4]]
     f=[initial_values[5]]
     g=[initial_values[6]]
+
     while (abs(polinomial_solver(time1,a)-polinomial_solver(time1,a[:-1]))/abs(polinomial_solver(time1,a)))>3*10**-4:
         a=a+[(1/(len(a)))*(((p-sum(beta))/l)*a[-1]+Lambda[0]*b[-1]+Lambda[1]*c[-1]+Lambda[2]*d[-1]+Lambda[3]*e[-1]+Lambda[4]*f[-1]+Lambda[5]*g[-1])]
         b=b+[(1/(len(b)))*(((beta[0]/l)*a[-2])-Lambda[0]*b[-1])]
@@ -257,27 +192,21 @@ def coefficients_solver(initial_values,time1,p): ### Using Sochaki-Parker using 
     #print([polinomial_solver(time1,a),polinomial_solver(time1,b),polinomial_solver(time1,c),polinomial_solver(time1,d),polinomial_solver(time1,e),polinomial_solver(time1,f),polinomial_solver(time1,g),abs(time.perf_counter()-start_time)])
     return [polinomial_solver(time1,a),polinomial_solver(time1,b),polinomial_solver(time1,c),polinomial_solver(time1,d),polinomial_solver(time1,e),polinomial_solver(time1,f),polinomial_solver(time1,g),abs(time.perf_counter()-start_time)]
 
-def place(counts,k,source): 
+def place(counts, k, source): 
     return math.log(1-counts*(1-k)/(source))/math.log(k) #operação inversa da soma geométrica para descobrir o N no expoente correspondente ao numero de contagens
                                                          #dois logs apenas para mudar de base
 
-def continuation(counts,k,source,time):
-    if round(counts,8)==round(source/(1-k),8):
+def continuation(counts, k, source, time):
+    if round(counts, 8) == round(source/(1-k), 8):
         return counts
-    elif round(counts,8)>source/(1-k):
+    elif round(counts,8) > source/(1-k):
         print(True)
-        return counts*math.exp((k-1)*time/(ld*10)) #one group approximation para resolver problemas devido a ruído
+        return counts * math.exp((k-1)*time/(ld*10)) #one group approximation para resolver problemas devido a ruído
     else:
-        n=place(counts,k,source)
-        return source*(1-k**(n+time/(ld)))/(1-k) #nest iteration of the geometric sum
+        N = place(counts, k, source) #the Nth iteration of the geometric sum
+        return source * (1 - k**(N+time/ld)) / (1-k) #next iteration of the geometric sum
 
-
-
-b=time.time()
-# Find the root of reactivity(x) - 400 = 0 using the Newton-Raphson method
-#print(time.time()-b)
-#print("roots "+str(root))
-def simulation(A,criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
+def activate_instruments():
     instrument.write('SOUR1:FUNC PULS') #modo pulso
     instrument.write('SOUR1:BURS:STATe OFF') #modo burst off
     instrument.write('SOUR1:FREQ 2Hz') 
@@ -294,127 +223,123 @@ def simulation(A,criticality): ### This is a simulation of the bars with the rea
     instrument.write('SOUR2:VOLT:LEV:IMM:AMPL 5VPP')
     instrument.write('SOUR2:VOLT:LEV:IMM:OFFS 2.5V')
     instrument.write('OUTP2 ON') ### initial output of the Function Generator
-
-    keithley.write(':SYST:REM') #set the source to work on remote mode
+    keithley.write(':SYST:REM')
     keithley.write(':SOUR:FUNC CURR')  # Set the source function to current
     keithley.write('SOUR:CURR:DEL:AUTO OFF')
     keithley.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
     keithley.write(':OUTP ON')  # Turn on the output
-
     time.sleep(10)
     instrument.write('SOUR1:FREQ 20Hz')
     instrument.write('SOUR2:FREQ 20Hz')
     time.sleep(20)
-    cont=True
-    counts=11 #counts associadas a todas as barras a 0%
-    k1=1-A/counts #k associado a 11 counts
-    initial_values=[counts,(beta[0]*counts)/(Lambda[0]*l),(beta[1]*counts)/(Lambda[1]*l),(beta[2]*counts)/(Lambda[2]*l),
-                    (beta[3]*counts)/(Lambda[3]*l),(beta[4]*counts)/(Lambda[4]*l),(beta[5]*counts)/(Lambda[5]*l)] #aproximação de valores iniciais das 7 variáveis
-    while initial_values[0]<10**12 and initial_values[0]>10:
-        x1=[k1,k1,k1,k1] ### averages necessary to reduce the noise saving values of time a k, maybe should remove them.
-        b=time.time()
-        while round(root_mean_squared(x1),5)<1 and cont==True:
-            #if A/(1-round(root_mean_squared(x1),5))<100 and cont==True:
-            z=threadings()[0]
-            del z[-1] #deleting last value from CARAPAU because it's not used
-            instrument.write('SOUR1:FREQ '+str(continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)+(-10+random.random()*20))+'Hz')
+
+b=time.time()
+
+def simulation(A, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
+    
+    activate_instruments()
+
+    cont = True
+    counts = 11 #counts associadas a todas as barras a 0%
+    k0 = 1 - A/counts #k associado a 11 counts
+    initial_values = [counts,
+                    (beta[0]*counts)/(Lambda[0]*l),
+                    (beta[1]*counts)/(Lambda[1]*l),
+                    (beta[2]*counts)/(Lambda[2]*l),
+                    (beta[3]*counts)/(Lambda[3]*l),
+                    (beta[4]*counts)/(Lambda[4]*l),
+                    (beta[5]*counts)/(Lambda[5]*l)] #aproximação de valores iniciais das 7 variáveis
+    
+    while 10 < initial_values[0] < 10**12:
+
+        k_list = [k0]*5 ### averages necessary to reduce the noise saving values of time a k, maybe should remove them.
+        k_value = round(root_mean_squared(k_list), 5)
+        b = time.time()
+        while k_value < 1 and cont == True:
+            carapau = threadings()[0] #voltage readings from CARAPAU
+            del carapau[-1] #deleting last value from CARAPAU because it's not used
+
+            new_counts = continuation(initial_values[0], round(root_mean_squared(k_list), 5), A, time.time() - b)
+            instrument.write('SOUR1:FREQ '+str(new_counts + (-10 + random.random()*20)) + 'Hz')
             instrument.write('SOUR1:PULS:DCYC 10') #duty cycle de forma a garantir pulsos de 100ns
-            instrument.write('SOUR2:FREQ '+str(continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)+(-10+random.random()*20))+'Hz')
+            instrument.write('SOUR2:FREQ '+str(new_counts + (-10 + random.random()*20)) + 'Hz')
             instrument.write('SOUR2:PULS:DCYC 10')
-            current = 100*10**-12/(20*10**4)*initial_values[0] #current-counts proportionality, 20kcps<->100pA
+
+
+
+            current = 100 * 10**-12 / (20*10**4) * initial_values[0] #current-counts proportionality, 20kcps<->100pA
             keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
             keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
-            counts=continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)
+            
             b=time.time()
-            initial_values=[counts,(beta[0]*counts)/(Lambda[0]*l),(beta[1]*counts)/(Lambda[1]*l),(beta[2]*counts)/(Lambda[2]*l),(beta[3]*counts)/(Lambda[3]*l),(beta[4]*counts)/(Lambda[4]*l),(beta[5]*counts)/(Lambda[5]*l)]
-            print([round(root_mean_squared(x1),5),initial_values[0],cont])
-            k1=k(z,criticality)
-            del x1[0]
-            x1=x1+[k1] #sum of the k variation to the initial k
-                #print([round(root_mean_squared(x1),5),z*20,((1.7/(1-round(root_mean_squared(x1),5))**0.9)*math.exp(-0.00001/(1-round(root_mean_squared(x1),5))))*(0.85+random.random()*0.3),cont])
-        counts=initial_values[0]
-        p=[((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1),((k1-1)/k1)]
-        initial_values=[counts,(beta[0]*counts)/(Lambda[0]*l),(beta[1]*counts)/(Lambda[1]*l),(beta[2]*counts)/(Lambda[2]*l),(beta[3]*counts)/(Lambda[3]*l),
-                        (beta[4]*counts)/(Lambda[4]*l),(beta[5]*counts)/(Lambda[5]*l)]
-        #print(initial_values)
-        previous_values=[counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts]
-        cont=False
-        times=[]
-        for i in range(0,len(previous_values)):
-            times=times+[0.09]
-        #print(previous_values)
-        while cont==False and initial_values[0]<10**12: #Second cycle supercritical state.
-            w=time.time()
-            z=threadings1(sum(p)/len(p),0.1,initial_values)
-            p1=(cs_1(z[0][0]*20)+cs_2(z[0][1]*20)+cs_3(z[0][2]*20)+cs_4(z[0][3]*20)+cs_r(z[0][4]*20)-criticality)*10**-5
+            initial_values = [new_counts, 
+                              (beta[0]*new_counts)/(Lambda[0]*l), 
+                              (beta[1]*new_counts)/(Lambda[1]*l),
+                              (beta[2]*new_counts)/(Lambda[2]*l), 
+                              (beta[3]*new_counts)/(Lambda[3]*l), 
+                              (beta[4]*new_counts)/(Lambda[4]*l),
+                              (beta[5]*new_counts)/(Lambda[5]*l)]
+            
+            print([f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}'])
+            
+            new_k = k(carapau, criticality) #new k calculated with the function k
+            del k_list[0]
+            k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
+            k_value = round(root_mean_squared(k_list),5)
+
+        counts = initial_values[0]
+
+        p = [((new_k - 1) / new_k)] * 10 #list of ractivities to average (to decrease noise)
+
+        initial_values = [counts, 
+                        (beta[0]*counts)/(Lambda[0]*l), 
+                        (beta[1]*counts)/(Lambda[1]*l),
+                        (beta[2]*counts)/(Lambda[2]*l),
+                        (beta[3]*counts)/(Lambda[3]*l),
+                        (beta[4]*counts)/(Lambda[4]*l),
+                        (beta[5]*counts)/(Lambda[5]*l)]
+
+        previous_values = [counts] * 100 #81
+
+        cont = False
+
+        times = [0.09] * len(previous_values) #where does the 0.09 comes from?
+
+        while cont == False and initial_values[0] < 10**12: #Second cycle supercritical state.
+            
+            w = time.time()
+            z = threadings1(sum(p)/len(p), 0.1, initial_values)
+            new_p = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #new reactivity
+            
             del p[0]
-            p=p+[p1]
-            #T=optimize.newton(lambda x: reactivity(x) - p, x0=0.0001, tol=1e-8)
-            initial_values1=z[-1]
+            p = p + [new_p]
+
+            initial_values1 = z[-1]
             del previous_values[0]
-            previous_values=previous_values+[initial_values1[0]]
-            #print(previous_values)
-            if abs(previous_values[-1]-previous_values[0])<0.1:
-                print([((round(-1/((sum(p)/len(p))-1),5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5, 10**8, cont,initial_values1[0]])
+            previous_values = previous_values + [initial_values1[0]]
+
+            p_value = round(sum(p)/len(p), 5) * 10**5 #reactivity given in pcm
+            current = 100 * 10**-12 / (20*10**4) * initial_values1[0] #current-counts proportionality, 20kcps<->100pA
+            tau = sum(times) / (math.log(previous_values[-1]/previous_values[0])) #reactor period 
+
+            if abs(previous_values[-1] - previous_values[0]) < 0.1: #what is this condition?
+                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]}, Cont: {cont}'])
             else:
-                print([((round(-1/((sum(p)/len(p))-1), 5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5,cont,
-                       sum(times)/(math.log(previous_values[-1]/previous_values[0])), f'{initial_values1[0]:.5e}'])
-            initial_values=initial_values1
-            k1=round(-1/(p1-1),5)
-            if A/(1-k1)>initial_values1[0] or k1<0.9999: #making sure that counts do not go below theoretical level of 1/1-k
-                cont=True                                  #sends back to startup channel
+                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]:.3e}, Period: {tau:.3e}, Current: {current:.3e}, Cont: {cont}']) ### !!! OUTPUT IN CRITICAL STATE !!!
+            
+            initial_values = initial_values1
+
+            new_k = round(-1/(new_p - 1), 5)
+
+            if A / (1 - new_k) > initial_values1[0] or new_k < 0.9999: #making sure that counts do not go below theoretical level of A/1-k
+                cont = True                                            #sends back to startup channel
             else:
                 continue
+                
             del times[0]
-            times=times+[time.time()-w]
-            #initial_values=coefficients_solver(initial_values,time.time()-b,p)
-            #initial_values=Range_Kutta_nuclear([N,C1,C2,C3,C4,C5,C6],initial_values,(time.time()-b)*.02,p)
-            #instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz')
-            #instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
-            #b=time.time()
-            #instrument.write('SOUR1:PULS:WIDTH 50ns')
-            #instrument.write('SOUR2:PULS:WIDTH 50ns')
-            #counts=counts*math.exp((time.time()-b)/T)
-            #p1=p
-            #if i==50:
-            #   x=x+[time.time()-w]
-            #  y=y+[initial_values[0]]
-            # i=0
-            #else:
-            #   i=i+1
-    #return [x,y]
-
-""" 
-else:
-z=threadings()[0]
-del z[-1]
-instrument.write('SOUR1:FREQ '+str(continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)+(-10+random.random()*20))+'Hz')
-instrument.write('SOUR1:PULS:WIDTH 100ns')
-instrument.write('SOUR2:FREQ '+str(continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)+(-10+random.random()*20))+'Hz')
-instrument.write('SOUR2:PULS:WIDTH 100ns')
-counts=continuation(initial_values[0],round(root_mean_squared(x1),5),A,time.time()-b)
-b=time.time()
-initial_values=[counts,(beta[0]*counts)/(Lambda[0]*l),(beta[1]*counts)/(Lambda[1]*l),(beta[2]*counts)/(Lambda[2]*l),(beta[3]*counts)/(Lambda[3]*l),(beta[4]*counts)/(Lambda[4]*l),(beta[5]*counts)/(Lambda[5]*l)]
-print([round(root_mean_squared(x1),5),initial_values[0],cont])
-k1=k(z,9097.35452975902)
-del x1[0]
-x1=x1+[k1]
-"""
-
-
-#r=
+            times = times + [time.time() - w]
+            
 simulation(A=2, criticality=9093)
 instrument.write('OUTP1 OFF')
 instrument.write('OUTP2 OFF')
-"""
-plt.figure(figsize=(17,11))
-plt.plot(r[0],r[1],label="values",marker=",",markersize=2)
-plt.legend()
-plt.yscale('log')
-plt.show()
-"""
