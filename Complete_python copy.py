@@ -36,7 +36,7 @@ a=time.perf_counter()
 print(time.perf_counter()-a, 's') 
 
 
-def AFG_signals(p, limit, initial_values, result_queue): 
+def AFG_signals(p, limit, initial_values, result_queue): #the result queue used here is result_queueu1
     
     b = time.time()
     c = time.perf_counter()
@@ -56,11 +56,6 @@ def AFG_signals(p, limit, initial_values, result_queue):
         instrument.write('SOUR2:FREQ' + str(initial_values[0]) + 'Hz')
         instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
         instrument.write('SOUR2:PULS:WIDTH 200ns')
-    #elif 2*10**4 < initial_values[0] < 4*10**4: #limite do source range é 10^6 mas decidir deixar de enviar a partir de 40kcps devido ao rods inhibit
-    #    instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-    #    instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
-    #    instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
-    #    instrument.write('SOUR2:PULS:WIDTH 200ns')
         keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
         keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
         keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
@@ -74,7 +69,7 @@ def AFG_signals(p, limit, initial_values, result_queue):
         keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
         keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
         keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
-    result_queue.put(initial_values) #multithreading 
+    result_queue.put(initial_values) #multithreading: in threadings1() this list will be 
 
 def threadings(): ### Thread Inicial quando está no Subcritico Só lê o valor do SALMAO e do CARAPAU
     if __name__ == "__main__": #não recebe os valores das ODE's porque no canal de arranque basta usar a progressão geométrica. não se resolvem as ODE's
@@ -101,17 +96,17 @@ def threadings(): ### Thread Inicial quando está no Subcritico Só lê o valor 
         results=[results[1], results[0]] #ensure that the order of the readings is [carapau, salmao]
     return results #readings from carapau and salmao
 
-def threadings1(p,limit,initial_values): #Quando passa para o estado supercritico Posição das barras mede e depois lê no Yokogawa ao mesmo tempo que está a ler ele corre as equações para temos um tempo mais pequeno
+def threadings1(p, limit, initial_values): #Quando passa para o estado supercritico Posição das barras mede e depois lê no Yokogawa ao mesmo tempo que está a ler ele corre as equações para temos um tempo mais pequeno
     if __name__ == "__main__":           #função igual à anterior mas recebe os valores das ODE's porque já é preciso calcular
         positions1 = [[2321, 2331], [3129, 3139], [3937, 3947], [4745, 4755], [5553, 5563], [6361, 6371]]
         positions2 = [[2339, 2346], [3145, 3152], [3951, 3959], [4758, 4766]]
 
         result_queue = queue.Queue()
-        result_queue1= queue.Queue()
+        result_queue1 = queue.Queue()
 
-        t1 = threading.Thread(target=values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue))
-        t2 = threading.Thread(target=values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue)) # Por tudo em um Thread.
-        t3 = threading.Thread(target=AFG_signals, args=(p,limit,initial_values,result_queue1))
+        t1 = threading.Thread(target = values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue))
+        t2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue)) # Por tudo em um Thread.
+        t3 = threading.Thread(target = AFG_signals, args=(p, limit, initial_values, result_queue1))
 
         t1.start()
         t2.start()
@@ -125,9 +120,9 @@ def threadings1(p,limit,initial_values): #Quando passa para o estado supercritic
         results = []
         while not result_queue.empty():
             results.append(result_queue.get())
-    if len(results[1])>len(results[0]):
-        results=[results[1],results[0]]
-    results.append(result_queue1.get())
+    if len(results[1]) > len(results[0]): #making sure that CARAPAU readings have more values than SALMAO's
+        results = [results[1], results[0]] #ordering list to have CARAPAU readings first
+    results.append(result_queue1.get()) 
     return results
 
 #### Valores experimentais do RPI Matos et al
@@ -170,7 +165,7 @@ def polinomial_solver(t, pol): #### determines the value of the polinomial (pol)
     return sum(list(pol[i]*t**i for i in range(0,len(pol))))
 
 
-def coefficients_solver(initial_values,time1,p): ### Using Sochaki-Parker using polinomials to get results
+def coefficients_solver(initial_values, time1, p): ### Using Sochaki-Parker using polinomials to get results
     start_time = time.perf_counter()
 
     a=[initial_values[0]]
@@ -181,30 +176,45 @@ def coefficients_solver(initial_values,time1,p): ### Using Sochaki-Parker using 
     f=[initial_values[5]]
     g=[initial_values[6]]
 
-    while (abs(polinomial_solver(time1,a)-polinomial_solver(time1,a[:-1]))/abs(polinomial_solver(time1,a)))>3*10**-4:
-        a=a+[(1/(len(a)))*(((p-sum(beta))/l)*a[-1]+Lambda[0]*b[-1]+Lambda[1]*c[-1]+Lambda[2]*d[-1]+Lambda[3]*e[-1]+Lambda[4]*f[-1]+Lambda[5]*g[-1])]
-        b=b+[(1/(len(b)))*(((beta[0]/l)*a[-2])-Lambda[0]*b[-1])]
-        c=c+[(1/(len(c)))*(((beta[1]/l)*a[-2])-Lambda[1]*c[-1])]
-        d=d+[(1/(len(d)))*(((beta[2]/l)*a[-2])-Lambda[2]*d[-1])]
-        e=e+[(1/(len(e)))*(((beta[3]/l)*a[-2])-Lambda[3]*e[-1])]
-        f=f+[(1/(len(f)))*(((beta[4]/l)*a[-2])-Lambda[4]*f[-1])]
-        g=g+[(1/(len(g)))*(((beta[5]/l)*a[-2])-Lambda[5]*g[-1])]
+    while (abs(polinomial_solver(time1, a) - polinomial_solver(time1, a[:-1])) / abs(polinomial_solver(time1,a))) > 3*10**-4:
+        a = a + [(1/(len(a)))*(((p-sum(beta))/l)*a[-1] + Lambda[0]*b[-1] + Lambda[1]*c[-1] + Lambda[2]*d[-1] + Lambda[3]*e[-1] + Lambda[4]*f[-1] + Lambda[5]*g[-1])]
+        b = b + [(1/(len(b)))*(((beta[0]/l)*a[-2]) - Lambda[0]*b[-1])]
+        c = c +[(1/(len(c)))*(((beta[1]/l)*a[-2]) - Lambda[1]*c[-1])]
+        d = d + [(1/(len(d)))*(((beta[2]/l)*a[-2]) - Lambda[2]*d[-1])]
+        e = e + [(1/(len(e)))*(((beta[3]/l)*a[-2]) - Lambda[3]*e[-1])]
+        f = f + [(1/(len(f)))*(((beta[4]/l)*a[-2]) - Lambda[4]*f[-1])]
+        g = g + [(1/(len(g)))*(((beta[5]/l)*a[-2]) - Lambda[5]*g[-1])]
     #print([polinomial_solver(time1,a),polinomial_solver(time1,b),polinomial_solver(time1,c),polinomial_solver(time1,d),polinomial_solver(time1,e),polinomial_solver(time1,f),polinomial_solver(time1,g),abs(time.perf_counter()-start_time)])
-    return [polinomial_solver(time1,a),polinomial_solver(time1,b),polinomial_solver(time1,c),polinomial_solver(time1,d),polinomial_solver(time1,e),polinomial_solver(time1,f),polinomial_solver(time1,g),abs(time.perf_counter()-start_time)]
+    solved = [polinomial_solver(time1, a),
+            polinomial_solver(time1, b),
+            polinomial_solver(time1, c),
+            polinomial_solver(time1, d),
+            polinomial_solver(time1, e),
+            polinomial_solver(time1, f),
+            polinomial_solver(time1, g),
+            abs(time.perf_counter()-start_time)]
+    
+    return solved
 
 def place(counts, k, source): 
-    return math.log(1-counts*(1-k)/(source))/math.log(k) #operação inversa da soma geométrica para descobrir o N no expoente correspondente ao numero de contagens
-                                                         #dois logs apenas para mudar de base
+    N = math.log(1-counts*(1-k)/(source))/math.log(k) #operação inversa da soma geométrica para descobrir o N no expoente correspondente ao numero de contagens
+    return N                                                     #dois logs apenas para mudar de base
 
 def continuation(counts, k, source, time):
     if round(counts, 8) == round(source/(1-k), 8):
         return counts
-    elif round(counts,8) > source/(1-k):
+    elif round(counts, 8) > source/(1-k):
         print(True)
         return counts * math.exp((k-1)*time/(ld*10)) #one group approximation para resolver problemas devido a ruído
     else:
         N = place(counts, k, source) #the Nth iteration of the geometric sum
         return source * (1 - k**(N+time/ld)) / (1-k) #next iteration of the geometric sum
+
+def tau(N, N0, t, k): 
+    if N == N0:
+        return ld/(k-1)
+    else:
+        return t / math.log(N/N0)
 
 def activate_instruments():
     instrument.write('SOUR1:FUNC PULS') #modo pulso
@@ -233,15 +243,20 @@ def activate_instruments():
     instrument.write('SOUR2:FREQ 20Hz')
     time.sleep(20)
 
+def off(): #shuts outputs when the counts are out of range of operation
+    instrument.write('OUTP1 OFF')
+    instrument.write('OUTP2 OFF')
+    keithley.write(':OUTP OFF')
+
 b=time.time()
 
-def simulation(A, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
+def simulation(source, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
     
     activate_instruments()
 
     cont = True
     counts = 11 #counts associadas a todas as barras a 0%
-    k0 = 1 - A/counts #k associado a 11 counts
+    k0 = 1 - source/counts #k associado a 11 counts
     initial_values = [counts,
                     (beta[0]*counts)/(Lambda[0]*l),
                     (beta[1]*counts)/(Lambda[1]*l),
@@ -256,23 +271,23 @@ def simulation(A, criticality): ### This is a simulation of the bars with the re
         k_value = round(root_mean_squared(k_list), 5)
         b = time.time()
         while k_value < 1 and cont == True:
+
             carapau = threadings()[0] #voltage readings from CARAPAU
             del carapau[-1] #deleting last value from CARAPAU because it's not used
 
-            new_counts = continuation(initial_values[0], round(root_mean_squared(k_list), 5), A, time.time() - b)
-            instrument.write('SOUR1:FREQ '+str(new_counts + (-10 + random.random()*20)) + 'Hz')
+            new_counts = continuation(initial_values[0], k_value, source, time.time() - b)
+
+            instrument.write('SOUR1:FREQ '+str(new_counts) + 'Hz') # + (-10 + random.random()*20)) + 'Hz') #removing noise
             instrument.write('SOUR1:PULS:DCYC 10') #duty cycle de forma a garantir pulsos de 100ns
-            instrument.write('SOUR2:FREQ '+str(new_counts + (-10 + random.random()*20)) + 'Hz')
+            instrument.write('SOUR2:FREQ '+str(new_counts) + 'Hz') # + (-10 + random.random()*20)) + 'Hz')
             instrument.write('SOUR2:PULS:DCYC 10')
-
-
 
             current = 100 * 10**-12 / (20*10**4) * initial_values[0] #current-counts proportionality, 20kcps<->100pA
             keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
             keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
             
-            b=time.time()
+            b = time.time()
             initial_values = [new_counts, 
                               (beta[0]*new_counts)/(Lambda[0]*l), 
                               (beta[1]*new_counts)/(Lambda[1]*l),
@@ -286,11 +301,11 @@ def simulation(A, criticality): ### This is a simulation of the bars with the re
             new_k = k(carapau, criticality) #new k calculated with the function k
             del k_list[0]
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
-            k_value = round(root_mean_squared(k_list),5)
+            k_value = round(root_mean_squared(k_list), 5)
 
         counts = initial_values[0]
 
-        p = [((new_k - 1) / new_k)] * 10 #list of ractivities to average (to decrease noise)
+        p = [((k_value - 1) / k_value)] * 10 #list of ractivities to average (to decrease noise)
 
         initial_values = [counts, 
                         (beta[0]*counts)/(Lambda[0]*l), 
@@ -315,24 +330,24 @@ def simulation(A, criticality): ### This is a simulation of the bars with the re
             del p[0]
             p = p + [new_p]
 
-            initial_values1 = z[-1]
+            new_initial_values = z[-1] #list given by coefficient solver function
             del previous_values[0]
-            previous_values = previous_values + [initial_values1[0]]
+            previous_values = previous_values + [new_initial_values[0]] #new_initial_values[0] gives the counts
 
             p_value = round(sum(p)/len(p), 5) * 10**5 #reactivity given in pcm
-            current = 100 * 10**-12 / (20*10**4) * initial_values1[0] #current-counts proportionality, 20kcps<->100pA
-            tau = sum(times) / (math.log(previous_values[-1]/previous_values[0])) #reactor period 
-
-            if abs(previous_values[-1] - previous_values[0]) < 0.1: #what is this condition?
-                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]}, Cont: {cont}'])
-            else:
-                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]:.3e}, Period: {tau:.3e}, Current: {current:.3e}, Cont: {cont}']) ### !!! OUTPUT IN CRITICAL STATE !!!
+            current = 100 * 10**-12 / (20*10**4) * new_initial_values[0] #current-counts proportionality, 20kcps<->100pA
+            period = tau(N = previous_values[-1], N0 = previous_values[0], t = sum(times), k = 1/(1-p_value)) #reactor period 
             
-            initial_values = initial_values1
+            if abs(previous_values[-1] - previous_values[0]) < 0.1: #what is this condition?
+                print([f'p (pcms): {p_value}, Counts: {new_initial_values[0]}, Cont: {cont}'])
+            else:
+                print([f'p (pcms): {p_value}, Counts: {new_initial_values[0]:.3e}, Period: {period:.3e}, Current: {current:.3e}, Cont: {cont}']) ### !!! OUTPUT IN CRITICAL STATE !!!
+            
+            initial_values = new_initial_values
 
             new_k = round(-1/(new_p - 1), 5)
 
-            if A / (1 - new_k) > initial_values1[0] or new_k < 0.9999: #making sure that counts do not go below theoretical level of A/1-k
+            if source / (1 - new_k) > new_initial_values[0] or new_k < 0.9999: #making sure that counts do not go below theoretical level of A/1-k
                 cont = True                                            #sends back to startup channel
             else:
                 continue
@@ -340,6 +355,6 @@ def simulation(A, criticality): ### This is a simulation of the bars with the re
             del times[0]
             times = times + [time.time() - w]
             
-simulation(A=2, criticality=9093)
-instrument.write('OUTP1 OFF')
-instrument.write('OUTP2 OFF')
+    off()
+            
+simulation(source=2, criticality=9093) #why source=2?
