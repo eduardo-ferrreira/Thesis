@@ -271,6 +271,7 @@ def threadings1(p, limit, initial_values): #when in supercritical state, reads r
         th4.join()
         
         # Collect results from the queue
+
         results = []
         while not result_queue.empty():
             results.append(result_queue.get())
@@ -298,17 +299,19 @@ counts_list = []
 current_list = []
 t_list = []
 k_list_values = []
+period_values = []
 CH1_SALMAO = [] #counts 
 CH2_SALMAO = [] #periodo
 CH1_TRUTA = [] #periodo
 CH2_TRUTA = [] #corrente log
 CH3_TRUTA = [] #linear power
 
-def data(counts, current, t, k, salmao, truta): #save data to CSV file to then open with a notebook
+def data(counts, current, t, k, period, salmao, truta): #save data to CSV file to then open with a notebook
     counts_list.append(counts)
     current_list.append(current)
     t_list.append(t)
     k_list_values.append(k)
+    period_values.append(period)
     CH1_SALMAO.append(salmao[0]) 
     CH2_SALMAO.append(salmao[1]) 
     CH1_TRUTA.append(truta[0])
@@ -317,9 +320,9 @@ def data(counts, current, t, k, salmao, truta): #save data to CSV file to then o
 
     with open(filepath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['Time', 'Counts', 'Current', 'k', 
+        writer.writerow(['Time', 'Counts', 'Current', 'k', 'Period',
                          'CH1_SALMAO', 'CH2_SALMAO', 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA'])  # Write header
-        writer.writerows(zip(t_list, counts_list, current_list, k_list_values,
+        writer.writerows(zip(t_list, counts_list, current_list, k_list_values, period_values,
                               CH1_SALMAO, CH2_SALMAO, CH1_TRUTA, CH2_TRUTA, CH3_TRUTA))  # Write rows of lists
 
 t_initial = time.time()
@@ -327,8 +330,10 @@ t_initial = time.time()
 def simulation(source, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
     activate_instruments()
     cont = True
+    cont_true_list = []
+    cont_true_list.append(cont)
     counts = 11 #counts associated to all bars at 0%
-    k0 = 1 - source/counts #k asssociated at 11 counts
+    k_value = 1 - source/counts #k asssociated at 11 counts
     initial_values = [counts,
                     (beta[0]*counts)/(Lambda[0]*l),
                     (beta[1]*counts)/(Lambda[1]*l),
@@ -338,10 +343,10 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
                     (beta[5]*counts)/(Lambda[5]*l)] #initial approximation of the 7 variables
     
     while 10 < initial_values[0] < 10**12:
-        k_list = [k0]*100 # this list will be used to store new values of k to average them, to reduce the noise
+        k_list = [k_value]*100 # this list will be used to store new values of k to average them, to reduce the noise
         k_value = round(root_mean_squared(k_list), 5)
         t3 = time.time()
-
+    
         while k_value < 1 and cont == True:
 
             carapau = threadings()[0] #voltage readings from CARAPAU
@@ -369,7 +374,8 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
             del k_list[0]
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
             k_value = round(root_mean_squared(k_list), 5)
-            data(initial_values[0], current, t3-t_initial, k_value, salmao, truta)
+            period = ld / (k_value-1)
+            data(initial_values[0], current, t3-t_initial, k_value, period, salmao, truta)
             
         counts = initial_values[0]
         p = [((k_value - 1) / k_value)] * 10 #list of ractivities to average (to decrease noise)
@@ -400,8 +406,6 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
             del previous_values[0]
             previous_values = previous_values+[initial_values1[0]]
 
-
-
             p_value = round(sum(p)/len(p) * 10**5, 3) #reactivity given in pcm
             period = tau(previous_values[-1], previous_values[0], sum(times), 1/(1-p_value)) #reactor period 
             current = 100*10**-12 / (5*10**3) * initial_values1[0]
@@ -416,16 +420,15 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
 
             initial_values = initial_values1
             k_value = round(-1/(p1-1), 5)
-            data(initial_values[0], current, t4-t_initial, k_value, salmao, truta)
+            data(initial_values[0], current, t4-t_initial, k_value, period, salmao, truta)
 
-            if source / (1-k_value) > initial_values1[0] and k_value <= 1: #making sure that counts do not go below theoretical level of 1/1-k
-                cont=True                                       #sends back to startup channel
+            if source / (1-k_value) > initial_values[0] and k_value <= 0.99999: #making sure that counts do not go below theoretical level of 1/1-k when in subcritical state
+                cont = True                                                      #sends back to startup channel
             else:
                 continue
             del times[0]
-            times=times+[time.time() - t4]
+            times = times + [time.time() - t4]
             
-
     off() #shuts off the instruments after the loop ends
 
 

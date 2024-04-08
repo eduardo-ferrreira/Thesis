@@ -84,12 +84,12 @@ ld = l * (1 - sum(beta)) + sum([beta[i] * (1 / Lambda[i]) for i in range(len(Lam
 t = np.linspace(0, 1000, 100000)
 
 def p_function(t):
-    if t < 100:
-        return -100e-5
-    elif 100 < t < 500:
-        return -10e-5
-    else:
-        return 50e-5
+    if t < 50:
+        return 0
+    elif 50 < t < 200:
+        return 0.000366 * t * 1e-5
+    else: #elif t > 900:
+        return -0.000366 * t * 1e-5
 
 def dSdt(S, t):  # return state vector of point reactor kinetic equations ODE's
     n, C1, C2, C3, C4, C5, C6 = S
@@ -106,15 +106,15 @@ def dSdt(S, t):  # return state vector of point reactor kinetic equations ODE's
 
 # Initial conditions
 counts = 11 #counts associated to all bars at 0%
-"""initial_values = [counts,
+initial_values = [counts,
                     (beta[0]*counts)/(Lambda[0]*l),
                     (beta[1]*counts)/(Lambda[1]*l),
                     (beta[2]*counts)/(Lambda[2]*l),
                     (beta[3]*counts)/(Lambda[3]*l),
                     (beta[4]*counts)/(Lambda[4]*l),
-                    (beta[5]*counts)/(Lambda[5]*l)]"""
+                    (beta[5]*counts)/(Lambda[5]*l)]
 
-initial_values = [, 0, 0, 0, 0, 0, 0]
+#initial_values = [0, 0, 0, 0, 0, 0, 0]
 
 # Solve the differential equation
 sol = odeint(dSdt, initial_values, t)
@@ -125,7 +125,7 @@ plt.plot(t, sol.T[0])
 plt.xlabel('$Time$')
 plt.ylabel('$n$')
 #plt.title("Reactivity insertion of $\\rho=5pcm$ at $t=0$," + ' ' + "and $\\rho=-100pcm$ at $t=300$.")
-plt.savefig('reactivity evolution', dpi=300, bbox_inches='tight')
+#plt.savefig('reactivity evolution', dpi=300, bbox_inches='tight')
 plt.show()
 
 ##############################################################################################################################################
