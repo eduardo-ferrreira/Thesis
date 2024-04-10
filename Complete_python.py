@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 import math
 import pyvisa
-#import usb.core
+import usb.core
 import time
 import urllib.request
 import functools as ft
@@ -12,12 +12,11 @@ import multiprocessing
 import threading
 import queue
 from scipy import optimize
+rm = pyvisa.ResourceManager()
 import random
 
-rm = pyvisa.ResourceManager()
-
 instrument = rm.open_resource('USB0::0x0699::0x0358::C018403::INSTR')
-keithley = rm.open_resource('USB0::0x05E6::0x2450::04608397::INSTR')
+#keithley = rm.open_resource('USB0::0x05E6::0x2450::04608397::INSTR')
 
 def function(a): ##This function removes the unwanted strings from the Yokogawa Values converting them into floats
     assert type(a) == str
@@ -29,43 +28,41 @@ def values(website, positions, result_queue): ###This function helps us get the 
     content = str(web_url.read())
     values_list = [function(content[i[0]:i[1]]) for i in positions] #positions is the list of lists with the voltage readings
     result_queue.put(values_list) #multithreading
-a=time.perf_counter()
-print(time.perf_counter()-a)
 
 def AFG_signals(p,limit,initial_values,result_queue): 
-    b=time.time()
-    c=time.perf_counter()
-    w=0
-    while time.time()-b<limit:
+    w=time.time()
+    h=0.0001
+    i=0
+    while i*h<limit:
          ## continua a mandar sinais de tensao at]e 1MHz para a source Range, limit é dado pelo tempo médio de leitura do yokogawa
-        initial_values=coefficients_solver(initial_values,abs(time.perf_counter()-c+w),p) #coefficients_solver resolver o sistema de ODE's
-        c=(time.perf_counter())
-        w=initial_values[-1]
-        del initial_values[-1]
+        initial_values=taylor_polinomial(initial_values,h,p) #coefficients_solver resolver o sistema de ODE's
+        i=i+1
         current = 100*10**-12/(2*10**4)*initial_values[0] #current-counts proportionality, 20kcps<->100pA
     if initial_values[0]<2*10**4: #limite do loglin é 20kcps
         instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
         instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
         instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
         instrument.write('SOUR2:PULS:WIDTH 200ns')
-    elif 2*10**4<initial_values[0]<3*10**4: #limite do source range é 10^6
+    elif 2*10**4<initial_values[0]<9*10**5: #limite do source range é 10^6
         instrument.write('SOUR1:FREQ '+str(initial_values[0])+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
         instrument.write('SOUR2:FREQ '+str(initial_values[0])+'Hz')
         instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
         instrument.write('SOUR2:PULS:WIDTH 200ns')
-        keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
-        keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-        keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+        #keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
+        #keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
+        #keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
 
     ### Eduardo tu depois vais ter de por o comando para o gerador de sinais, usar mesma função para a fonte de corrente se possível
     else:
-        instrument.write('SOUR1:FREQ '+str(30000*(1+(0.1-0.2*random.random())))+'Hz')
-        instrument.write('SOUR2:FREQ '+str(30000*(1+(0.1-0.2*random.random())))+'Hz')
+        instrument.write('SOUR1:FREQ '+str(1000000*(1+(0.1-0.2*random.random())))+'Hz')
+        instrument.write('SOUR2:FREQ '+str(1000000*(1+(0.1-0.2*random.random())))+'Hz')
         instrument.write('SOUR1:PULS:WIDTH 200ns')
         instrument.write('SOUR2:PULS:WIDTH 200ns')
-        keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
-        keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-        keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+        #keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
+        #keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
+        #keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+    while abs(time.time()-w)<limit:
+        continue
     result_queue.put(initial_values) #multithreading 
 
 def Promecium(y_Nd,Sigma_f,L_p,counts,P0,t): ## Funcao que da densidade do Promecium
@@ -137,7 +134,7 @@ def threadings1(p,limit,initial_values): #Quando passa para o estado supercritic
 #### Valores experimentais do RPI
 Lambda = [0.0127, 0.0317, 0.116, 0.311, 1.4, 3.87] ## constante de decaimento
 beta = [0.00031, 0.00166, 0.00151, 0.00328, 0.00103, 0.00021]
-l = 0.00002 ### prompt neutrons
+l = 0.000055 ### prompt neutrons
 epsilon=1
 
 ld=l*(1-sum(beta))+beta[0]*(1/Lambda[0])+beta[1]*(1/Lambda[1])+beta[2]*(1/Lambda[2])+beta[3]*(1/Lambda[3])+beta[4]*(1/Lambda[4])+beta[5]*(1/Lambda[5]) #slow decay lifetime
@@ -198,7 +195,6 @@ def root_mean_squared(x):
 
 
 def taylor_polinomial(initial_values,interval,rhon): ###another method to solve these differential equations they work nice
-    start_time = time.perf_counter()
     dN=((rhon-sum(beta))/l)*initial_values[0]+Lambda[0]*initial_values[1]+Lambda[1]*initial_values[2]+Lambda[2]*initial_values[3]+Lambda[3]*initial_values[4]+Lambda[4]*initial_values[5]+Lambda[5]*initial_values[6]
     dC1=(beta[0]*initial_values[0])/(l)-Lambda[0]*initial_values[1]
     dC2=(beta[1]*initial_values[0])/(l)-Lambda[1]*initial_values[2]
@@ -206,7 +202,7 @@ def taylor_polinomial(initial_values,interval,rhon): ###another method to solve 
     dC4=(beta[3]*initial_values[0])/(l)-Lambda[3]*initial_values[4]
     dC5=(beta[4]*initial_values[0])/(l)-Lambda[4]*initial_values[5]
     dC6=(beta[5]*initial_values[0])/(l)-Lambda[5]*initial_values[6]
-    return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6,abs(time.perf_counter()-start_time)]
+    return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6]
 
 
 
@@ -271,6 +267,21 @@ def continuation(counts,k,source,time):
         n=place(counts,k,source)
         return source*(1-k**(n+time/(ld)))/(1-k) #nest iteration of the geometric sum
 
+def Inhour(T):
+    a=0
+    for i in range(0,len(beta)):
+        a=a+(beta[i]/(1+Lambda[i]*T))
+    return l/T+a
+"""
+x=[0.05]
+results=[Inhour(x[-1])]
+while x[-1]<5000:
+    x=x+[x[-1]+0.05]
+    results=results+[Inhour(x[-1])]
+    
+
+cs_Inhour=CubicSpline(x,results)
+"""
 
 
 b=time.time()
@@ -336,8 +347,7 @@ def simulation(A,criticality): ### This is a simulation of the bars with the rea
         previous_values=[counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
                          counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
                          counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,
-                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts]
+                         counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts,counts]
         cont=False
         times=[]
         for i in range(0,len(previous_values)):
@@ -355,17 +365,22 @@ def simulation(A,criticality): ### This is a simulation of the bars with the rea
             previous_values=previous_values+[initial_values1[0]]
             #print(previous_values)
             if abs(previous_values[-1]-previous_values[0])<0.1:
-                print([((round(-1/((sum(p)/len(p))-1),5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5, 10**8, cont,initial_values1[0]]) #porque 10**8??
+                print(int(((round(-1/((sum(p)/len(p))-1),5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5),10**8,cont,initial_values1[0])
             else:
-                print([((round(-1/((sum(p)/len(p))-1), 5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5,cont,
-                       sum(times)/(math.log(previous_values[-1]/previous_values[0])), f'{initial_values1[0]:.5e}'])
+                print(int(((round(-1/((sum(p)/len(p))-1), 5)-1)/(round(-1/((sum(p)/len(p))-1),5)))*10**5),cont,sum(times)/(math.log(previous_values[-1]/previous_values[0])),int(Inhour(sum(times)/(math.log(previous_values[-1]/previous_values[0])))*10**5),f'{initial_values1[0]:.5e}')
             initial_values=initial_values1
             k1=round(-1/(p1-1),5)
             if A/(1-k1)>initial_values1[0] and k1<0.9999: #making sure that counts do not go below theoretical level of 1/1-k
                 cont=True                                  #sends back to startup channel
             else:
-                continue
+                cont=False
             del times[0]
+            ### Taylor
+            h=0.0001
+            i=0 
+            while h*i<time.time()-w-0.1:
+                initial_values=taylor_polinomial(initial_values,h,p[-1]) #coefficients_solver resolver o sistema de ODE's
+                i=i+1
             times=times+[time.time()-w]
             #initial_values=coefficients_solver(initial_values,time.time()-b,p)
             #initial_values=Range_Kutta_nuclear([N,C1,C2,C3,C4,C5,C6],initial_values,(time.time()-b)*.02,p)
