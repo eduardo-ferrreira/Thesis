@@ -1,35 +1,16 @@
-#code by Luís and Eduardo
-#CTN, april 1st 2024
-
-#Packages used
-import numpy as np
-from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.integrate import odeint
 from scipy.interpolate import CubicSpline
-import math
-import pyvisa
-import time
-import urllib.request
-import functools as ft
-import multiprocessing
-import threading
-import queue
-import scipy
-import random
-import csv
-import datetime
-import os
 
-#Devices used using SCPI code and pyvisa
-rm = pyvisa.ResourceManager()
-instrument = rm.open_resource('USB0::0x0699::0x0358::C018403::INSTR')
-keithley = rm.open_resource('USB0::0x05E6::0x2450::04608397::INSTR')
+# Experimental data from RPI
+Lambda = [0.0127, 0.0317, 0.116, 0.311, 1.4, 3.87]  # decay constant of the precursors list
+beta = [0.00031, 0.00166, 0.00151, 0.00328, 0.00103, 0.00021]  # precursors fractions list
+l = 0.000055  # prompt neutrons
+epsilon = 1  # fast fission factor
+ld = l * (1 - sum(beta)) + sum([beta[i] * (1 / Lambda[i]) for i in range(len(Lambda))])  # slow decay lifetime
 
-#Experimental data from RPI
-Lambda = [0.0127, 0.0317, 0.116, 0.311, 1.4, 3.87] #decay constant of the percursors list
-beta = [0.00031, 0.00166, 0.00151, 0.00328, 0.00103, 0.00021] #percursors fractions list
-l = 0.000055 # prompt neutron lifetime (Matos et al.)
-ld = l * (1-sum(beta)) + beta[0]*(1/Lambda[0]) + beta[1]*(1/Lambda[1]) + beta[2]*(1/Lambda[2]) + beta[3]*(1/Lambda[3]) + beta[4]*(1/Lambda[4]) + beta[5]*(1/Lambda[5]) #mean generation time with delayed neutrons
+
 
 #Cubic splines to know the p corresponding to the rods position (values from the teacher's documents)
 x = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.0, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 13.0, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 14.0, 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 15.0, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 16.0, 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.9, 17.0, 17.1, 17.2, 17.3, 17.4, 17.5, 17.6, 17.7, 17.8, 17.9, 18.0, 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.8, 18.9, 19.0, 19.1, 19.2, 19.3, 19.4, 19.5, 19.6, 19.7, 19.8, 19.9, 20.0, 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7, 20.8, 20.9, 21.0, 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 21.7, 21.8, 21.9, 22.0, 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 22.7, 22.8, 22.9, 23.0, 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 23.9, 24.0, 24.1, 24.2, 24.3, 24.4, 24.5, 24.6, 24.7, 24.8, 24.9, 25.0, 25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.7, 25.8, 25.9, 26.0, 26.1, 26.2, 26.3, 26.4, 26.5, 26.6, 26.7, 26.8, 26.9, 27.0, 27.1, 27.2, 27.3, 27.4, 27.5, 27.6, 27.7, 27.8, 27.9, 28.0, 28.1, 28.2, 28.3, 28.4, 28.5, 28.6, 28.7, 28.8, 28.9, 29.0, 29.1, 29.2, 29.3, 29.4, 29.5, 29.6, 29.7, 29.8, 29.9, 30.0, 30.1, 30.2, 30.3, 30.4, 30.5, 30.6, 30.7, 30.8, 30.9, 31.0, 31.1, 31.2, 31.3, 31.4, 31.5, 31.6, 31.7, 31.8, 31.9, 32.0, 32.1, 32.2, 32.3, 32.4, 32.5, 32.6, 32.7, 32.8, 32.9, 33.0, 33.1, 33.2, 33.3, 33.4, 33.5, 33.6, 33.7, 33.8, 33.9, 34.0, 34.1, 34.2, 34.3, 34.4, 34.5, 34.6, 34.7, 34.8, 34.9, 35.0, 35.1, 35.2, 35.3, 35.4, 35.5, 35.6, 35.7, 35.8, 35.9, 36.0, 36.1, 36.2, 36.3, 36.4, 36.5, 36.6, 36.7, 36.8, 36.9, 37.0, 37.1, 37.2, 37.3, 37.4, 37.5, 37.6, 37.7, 37.8, 37.9, 38.0, 38.1, 38.2, 38.3, 38.4, 38.5, 38.6, 38.7, 38.8, 38.9, 39.0, 39.1, 39.2, 39.3, 39.4, 39.5, 39.6, 39.7, 39.8, 39.9, 40.0, 40.1, 40.2, 40.3, 40.4, 40.5, 40.6, 40.7, 40.8, 40.9, 41.0, 41.1, 41.2, 41.3, 41.4, 41.5, 41.6, 41.7, 41.8, 41.9, 42.0, 42.1, 42.2, 42.3, 42.4, 42.5, 42.6, 42.7, 42.8, 42.9, 43.0, 43.1, 43.2, 43.3, 43.4, 43.5, 43.6, 43.7, 43.8, 43.9, 44.0, 44.1, 44.2, 44.3, 44.4, 44.5, 44.6, 44.7, 44.8, 44.9, 45.0, 45.1, 45.2, 45.3, 45.4, 45.5, 45.6, 45.7, 45.8, 45.9, 46.0, 46.1, 46.2, 46.3, 46.4, 46.5, 46.6, 46.7, 46.8, 46.9, 47.0, 47.1, 47.2, 47.3, 47.4, 47.5, 47.6, 47.7, 47.8, 47.9, 48.0, 48.1, 48.2, 48.3, 48.4, 48.5, 48.6, 48.7, 48.8, 48.9, 49.0, 49.1, 49.2, 49.3, 49.4, 49.5, 49.6, 49.7, 49.8, 49.9, 50.0, 50.1, 50.2, 50.3, 50.4, 50.5, 50.6, 50.7, 50.8, 50.9, 51.0, 51.1, 51.2, 51.3, 51.4, 51.5, 51.6, 51.7, 51.8, 51.9, 52.0, 52.1, 52.2, 52.3, 52.4, 52.5, 52.6, 52.7, 52.8, 52.9, 53.0, 53.1, 53.2, 53.3, 53.4, 53.5, 53.6, 53.7, 53.8, 53.9, 54.0, 54.1, 54.2, 54.3, 54.4, 54.5, 54.6, 54.7, 54.8, 54.9, 55.0, 55.1, 55.2, 55.3, 55.4, 55.5, 55.6, 55.7, 55.8, 55.9, 56.0, 56.1, 56.2, 56.3, 56.4, 56.5, 56.6, 56.7, 56.8, 56.9, 57.0, 57.1, 57.2, 57.3, 57.4, 57.5, 57.6, 57.7, 57.8, 57.9, 58.0, 58.1, 58.2, 58.3, 58.4, 58.5, 58.6, 58.7, 58.8, 58.9, 59.0, 59.1, 59.2, 59.3, 59.4, 59.5, 59.6, 59.7, 59.8, 59.9, 60.0, 60.1, 60.2, 60.3, 60.4, 60.5, 60.6, 60.7, 60.8, 60.9, 61.0, 61.1, 61.2, 61.3, 61.4, 61.5, 61.6, 61.7, 61.8, 61.9, 62.0, 62.1, 62.2, 62.3, 62.4, 62.5, 62.6, 62.7, 62.8, 62.9, 63.0, 63.1, 63.2, 63.3, 63.4, 63.5, 63.6, 63.7, 63.8, 63.9, 64.0, 64.1, 64.2, 64.3, 64.4, 64.5, 64.6, 64.7, 64.8, 64.9, 65.0, 65.1, 65.2, 65.3, 65.4, 65.5, 65.6, 65.7, 65.8, 65.9, 66.0, 66.1, 66.2, 66.3, 66.4, 66.5, 66.6, 66.7, 66.8, 66.9, 67.0, 67.1, 67.2, 67.3, 67.4, 67.5, 67.6, 67.7, 67.8, 67.9, 68.0, 68.1, 68.2, 68.3, 68.4, 68.5, 68.6, 68.7, 68.8, 68.9, 69.0, 69.1, 69.2, 69.3, 69.4, 69.5, 69.6, 69.7, 69.8, 69.9, 70.0, 70.1, 70.2, 70.3, 70.4, 70.5, 70.6, 70.7, 70.8, 70.9, 71.0, 71.1, 71.2, 71.3, 71.4, 71.5, 71.6, 71.7, 71.8, 71.9, 72.0, 72.1, 72.2, 72.3, 72.4, 72.5, 72.6, 72.7, 72.8, 72.9, 73.0, 73.1, 73.2, 73.3, 73.4, 73.5, 73.6, 73.7, 73.8, 73.9, 74.0, 74.1, 74.2, 74.3, 74.4, 74.5, 74.6, 74.7, 74.8, 74.9, 75.0, 75.1, 75.2, 75.3, 75.4, 75.5, 75.6, 75.7, 75.8, 75.9, 76.0, 76.1, 76.2, 76.3, 76.4, 76.5, 76.6, 76.7, 76.8, 76.9, 77.0, 77.1, 77.2, 77.3, 77.4, 77.5, 77.6, 77.7, 77.8, 77.9, 78.0, 78.1, 78.2, 78.3, 78.4, 78.5, 78.6, 78.7, 78.8, 78.9, 79.0, 79.1, 79.2, 79.3, 79.4, 79.5, 79.6, 79.7, 79.8, 79.9, 80.0, 80.1, 80.2, 80.3, 80.4, 80.5, 80.6, 80.7, 80.8, 80.9, 81.0, 81.1, 81.2, 81.3, 81.4, 81.5, 81.6, 81.7, 81.8, 81.9, 82.0, 82.1, 82.2, 82.3, 82.4, 82.5, 82.6, 82.7, 82.8, 82.9, 83.0, 83.1, 83.2, 83.3, 83.4, 83.5, 83.6, 83.7, 83.8, 83.9, 84.0, 84.1, 84.2, 84.3, 84.4, 84.5, 84.6, 84.7, 84.8, 84.9, 85.0, 85.1, 85.2, 85.3, 85.4, 85.5, 85.6, 85.7, 85.8, 85.9, 86.0, 86.1, 86.2, 86.3, 86.4, 86.5, 86.6, 86.7, 86.8, 86.9, 87.0, 87.1, 87.2, 87.3, 87.4, 87.5, 87.6, 87.7, 87.8, 87.9, 88.0, 88.1, 88.2, 88.3, 88.4, 88.5, 88.6, 88.7, 88.8, 88.9, 89.0, 89.1, 89.2, 89.3, 89.4, 89.5, 89.6, 89.7, 89.8, 89.9, 90.0, 90.1, 90.2, 90.3, 90.4, 90.5, 90.6, 90.7, 90.8, 90.9, 91.0, 91.1, 91.2, 91.3, 91.4, 91.5, 91.6, 91.7, 91.8, 91.9, 92.0, 92.1, 92.2, 92.3, 92.4, 92.5, 92.6, 92.7, 92.8, 92.9, 93.0, 93.1, 93.2, 93.3, 93.4, 93.5, 93.6, 93.7, 93.8, 93.9, 94.0, 94.1, 94.2, 94.3, 94.4, 94.5, 94.6, 94.7, 94.8, 94.9, 95.0, 95.1, 95.2, 95.3, 95.4, 95.5, 95.6, 95.7, 95.8, 95.9, 96.0, 96.1, 96.2, 96.3, 96.4, 96.5, 96.6, 96.7, 96.8, 96.9, 97.0, 97.1, 97.2, 97.3, 97.4, 97.5, 97.6, 97.7, 97.8, 97.9, 98.0, 98.1, 98.2, 98.3, 98.4, 98.5, 98.6, 98.7, 98.8, 98.9, 99.0, 99.1, 99.2, 99.3, 99.4, 99.5, 99.6, 99.7, 99.8, 99.9]
@@ -44,417 +25,63 @@ cs_3 = CubicSpline(x,y3)
 cs_4 = CubicSpline(x,y4)
 cs_r = CubicSpline(x,yr)
 
-#Functions
-def function(url_string): #Removes the unwanted strings from the Yokogawa Values converting them into floats
-    assert type(url_string) == str
-    url_string_list = list(url_string.strip())
-    return float(ft.reduce(lambda x, y: x + y, list(filter(lambda x: x.isdigit() or x == '.' or x == '-', url_string_list))))
+t = np.linspace(0, 1000, 10000)
 
-def values(website, positions, result_queue): #Get the values from the Yokogawa by putting its site in what positions are the the values taken from it and then put it in a queue for multithreading
-    web_url = urllib.request.urlopen(website)
-    content = str(web_url.read())
-    values_list = [function(content[i[0]:i[1]]) for i in positions] #positions is the list of lists with the voltage readings
-    result_queue.put(values_list) #multithreading
-
-t0 = time.perf_counter()
-print(time.perf_counter() - t0)
-
-def k(z, criticality):
-    assert type(z) == list and len(z) == 5 # determines the value of k based on the rods positions
-    for i in range(len(z)):
-        z[i] = z[i]*20 #voltages readings from 0-5V, multiply by 20 to give in % reading
-    p=(cs_1(z[0]) + cs_2(z[1]) + cs_3(z[2]) + cs_4(z[3]) + cs_r(z[4]) - criticality)*10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
-    return -1/(p-1) #returning k
-
-def place(counts, k, source): 
-    return math.log(1-counts*(1-k)/(source)) / math.log(k) #inverse operation of the exponent from the geometric sum to find out the n corresponding to the nth count
-                                                         #two logs to change log base
-def continuation(counts, k, source, time):
-    if round(counts, 8) == round(source/(1-k), 8): #theoretical upper limit of the number of neutrons in a subcritical state, equal to the sum of the geometric series
-        return counts
-    elif round(counts, 8) > source/(1-k):
-        print('counts > source/(1-k)')
-        return counts*math.exp((k-1)*time/(ld*10)) #one group approximation para resolver problemas devido a ruído
+def p_function(t):
+    p = (cs_1(-100/(9*60+4)*(t-500)+55.5) + cs_2(-100/(9*60+30)*(t-500)+56.5) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5) + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5
+    if t < 200:
+        return 100e-5
+    elif 200 < t < 500:
+        return 0
     else:
-        n = place(counts, k, source)
-        return source * (1 - k**(n+time/ld)) / (1-k) #next iteration of the geometric sum
+        if p < -9093e-5:
+            p = -9093e-5
+        #print(p*10**5)
+        return p
 
-def polinomial_solver(t, pol): # determines the value of the polinomial (pol) at that instance of time equals t, will be used in coefficients_solver function
-    assert type(pol)==list
-    return sum(list(pol[i]*t**i for i in range(0,len(pol))))
+def dSdt(S, t):  # return state vector of point reactor kinetic equations ODE's
+    n, C1, C2, C3, C4, C5, C6 = S
+    p = p_function(t)
+    return [
+        (p - sum(beta)) / l * n + sum([Lambda[i] * S[i + 1] for i in range(len(Lambda))]),
+        beta[0] / l * n - Lambda[0] * C1,
+        beta[1] / l * n - Lambda[1] * C2,
+        beta[2] / l * n - Lambda[2] * C3,
+        beta[3] / l * n - Lambda[3] * C4,
+        beta[4] / l * n - Lambda[4] * C5,
+        beta[5] / l * n - Lambda[5] * C6
+    ]
 
-def coefficients_solver(initial_values, time1, p): # Sochaki-Parker using polinomials to solve system of ODE's
-    k = 1/(1-p)
-    L = l/k
-    start_time = time.perf_counter()
-    a=[initial_values[0]]
-    b=[initial_values[1]]
-    c=[initial_values[2]]
-    d=[initial_values[3]]
-    e=[initial_values[4]]
-    f=[initial_values[5]]
-    g=[initial_values[6]]
-    while (abs(polinomial_solver(time1, a)-polinomial_solver(time1, a[:-1]))/abs(polinomial_solver(time1, a))) > 3*10**-4:
-        a=a+[(1/(len(a)))*(((p-sum(beta))/L)*a[-1]+Lambda[0]*b[-1]+Lambda[1]*c[-1]+Lambda[2]*d[-1]+Lambda[3]*e[-1]+Lambda[4]*f[-1]+Lambda[5]*g[-1])]
-        b=b+[(1/(len(b)))*(((beta[0]/L)*a[-2])-Lambda[0]*b[-1])]
-        c=c+[(1/(len(c)))*(((beta[1]/L)*a[-2])-Lambda[1]*c[-1])]
-        d=d+[(1/(len(d)))*(((beta[2]/L)*a[-2])-Lambda[2]*d[-1])]
-        e=e+[(1/(len(e)))*(((beta[3]/L)*a[-2])-Lambda[3]*e[-1])]
-        f=f+[(1/(len(f)))*(((beta[4]/L)*a[-2])-Lambda[4]*f[-1])]
-        g=g+[(1/(len(g)))*(((beta[5]/L)*a[-2])-Lambda[5]*g[-1])]
-    return [polinomial_solver(time1,a), polinomial_solver(time1,b), polinomial_solver(time1,c), polinomial_solver(time1,d), polinomial_solver(time1,e), polinomial_solver(time1,f), polinomial_solver(time1,g), abs(time.perf_counter()-start_time)]
-
-def taylor_polinomial(initial_values, interval, rhon): ###another method to solve these differential equations they work nice
-    k = 1/(1-rhon)
-    L = l/k
-    dN=((rhon-sum(beta))/L)*initial_values[0]+Lambda[0]*initial_values[1]+Lambda[1]*initial_values[2]+Lambda[2]*initial_values[3]+Lambda[3]*initial_values[4]+Lambda[4]*initial_values[5]+Lambda[5]*initial_values[6]
-    dC1=(beta[0]*initial_values[0])/(L)-Lambda[0]*initial_values[1]
-    dC2=(beta[1]*initial_values[0])/(L)-Lambda[1]*initial_values[2]
-    dC3=(beta[2]*initial_values[0])/(L)-Lambda[2]*initial_values[3]
-    dC4=(beta[3]*initial_values[0])/(L)-Lambda[3]*initial_values[4]
-    dC5=(beta[4]*initial_values[0])/(L)-Lambda[4]*initial_values[5]
-    dC6=(beta[5]*initial_values[0])/(L)-Lambda[5]*initial_values[6]
-    return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6]
-
-#########################################################################################################################################################################################
-
-def tau(N, N0, t, k): #reactor period
-    if N == N0:
-        return ld/(k-1) #in case the list of values has N0 equal to the last N, to avoid the math error of log(0)
-    else:
-        return t / math.log(N/N0)
-
-def Inhour(T, k):
-    L = l/k
-    a = 0
-    for i in range(len(beta)):
-        a += (beta[i]/(1+Lambda[i]*T))
-    return L/T + a
-
-def root_mean_squared(x): #gives RMS of a list
-    assert type(x) == list
-    return (sum(list(map(lambda y: y**2, x)))/len(x))**.5
-
-def activate_instruments(): #using SCPI commands 
-    instrument.write('SOUR1:FUNC PULS') #pulse mode
-    instrument.write('SOUR1:BURS:STATe OFF') #burst off mode
-    instrument.write('SOUR1:FREQ 2Hz') 
-    instrument.write('SOUR1:PULS:WIDTH 1000ns')
-    instrument.write('OUTP1:POL NORM') #positive pulse only
-    instrument.write('SOUR1:VOLT:LEV:IMM:AMPL 5VPP') #max 5V
-    instrument.write('SOUR1:VOLT:LEV:IMM:OFFS 2.5V') #offset 2.5V
-    instrument.write('OUTP1 ON') #activate output
-    instrument.write('SOUR2:FUNC PULS') #same for CH2  
-    instrument.write('SOUR2:BURS:STATe OFF')
-    instrument.write('SOUR2:FREQ 2Hz')
-    instrument.write('SOUR2:PULS:WIDTH 1000ns')
-    instrument.write('OUTP2:POL NORM')
-    instrument.write('SOUR2:VOLT:LEV:IMM:AMPL 5VPP')
-    instrument.write('SOUR2:VOLT:LEV:IMM:OFFS 2.5V')
-    instrument.write('OUTP2 ON')
-    keithley.write(':SYST:REM')
-    keithley.write(':SOUR:FUNC CURR')  # Set the source function to current
-    keithley.write('SOUR:CURR:DEL:AUTO OFF')
-    keithley.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
-    keithley.write(':OUTP ON')  # Turn on the output
-    time.sleep(5)
-    instrument.write('SOUR1:FREQ 20Hz')
-    instrument.write('SOUR2:FREQ 20Hz')
-    time.sleep(10)
-
-def afg_command(counts): #for CH1 and CH2
-    instrument.write('SOUR1:FREQ '+str(counts)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-    instrument.write('SOUR2:FREQ '+str(counts)+'Hz')
-    instrument.write('SOUR1:PULS:WIDTH 200ns')
-    instrument.write('SOUR2:PULS:WIDTH 200ns')
-    instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
-    instrument.write('SOUR2:PULS:WIDTH 200ns')
-
-def keithley_command(current):
-    keithley.write(f':SOUR:CURR {current}')  #set the source current to desired value
-    keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-    keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
-
-def AFG_signals(p, limit, initial_values, result_queue): 
-    '''t1 = time.time()
-    t2 = time.perf_counter()
-    w = 0
-    current = 100*10**-12 / (5*10**3) * initial_values[0] #current-counts proportionality, 5kcps<->100pA 
-    while time.time()-t1 < limit:
-         #continues to send signals to the source range until 1MHz, limit is given by the average reading time of the yokogawa
-        initial_values = coefficients_solver(initial_values, abs(time.perf_counter()-t2+w), p) #coefficients_solver solves the system of ODE's
-        #meter aqui novo metodo de resolver ode
-        t2 = (time.perf_counter())
-        w = initial_values[-1]
-        del initial_values[-1]'''
-    t1 = time.time()
-    h = 0.0001
-    i = 0
-    while i*h < limit:
-         ## continua a mandar sinais de tensao at]e 1MHz para a source Range, limit é dado pelo tempo médio de leitura do yokogawa
-        initial_values = taylor_polinomial(initial_values, h, p) #coefficients_solver resolver o sistema de ODE's
-        i += 1
-        current = 100*10**-12/(2*10**4)*initial_values[0] #current-counts proportionality, 20kcps<->100pA
-
-    if initial_values[0] < 3*10**4: #rods inhibit safety action of SourceRange starts at 50kcps, stop sending signals at 30kcps
-        afg_command(initial_values[0])
-        keithley_command(current)
-    elif current < 10**-4:
-        afg_command(30000) #writes in the afg the value of the counts given by the coefficients_solver
-        keithley_command(current)
-    else:
-        afg_command(30000)
-        keithley_command(10**-4)
-    while abs(time.time() - t1) < limit:
-        continue
-    result_queue.put(initial_values) #multithreading 
-
-def off(): #shuts outputs when the counts are out of range of operation
-    instrument.write('OUTP1 OFF')
-    instrument.write('OUTP2 OFF')
-    keithley.write(':OUTP OFF')
-    print('WARNING: Counts/Power limit reached.')
-
-def threadings(): # initial thread only used when in subcritical state; reads values of SALMAO and CARAPAU; does not use ODE's as it approximates K through a geometric sum
-    if __name__ == "__main__":
-        positions1 = [[2321, 2331], [3129, 3139], [3937, 3947], [4745, 4755], [5553, 5563], [6361, 6371]] #positions in the url string where the values of the readings may be
-        positions2 = [[2339, 2346], [3145, 3152], [3951, 3959], [4758, 4766]]
-
-        result_queue = queue.Queue()
-
-        th1 = threading.Thread(target = values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue)) #carapau
-        th2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue)) #salmao
-        #th3 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue)) #truta
-    
-        th1.start() #start the threading
-        th2.start()
-        #th3.start()
-        
-        th1.join() #joins the threading, output is given when both readings are complete
-        th2.join()
-        #th3.join()
-        
-        # Collect results from the queue
-        results = []
-        while not result_queue.empty():
-            results.append(result_queue.get())
-    '''for lst in results:
-        if len(lst) == 4 and round(lst[3], 2) == 0: # truta has length 4 and its CH4 has no readings
-            truta = lst
-        elif len(lst) == 6:
-            carapau = lst
-    salmao = [lst for lst in results if lst not in [carapau, truta]][0] #exclusion of parts
-    results = [carapau, salmao, truta] #ensure that the order of the readings is [carapau, salmao, truta]
-    return results #readings from carapau and salmao'''
-    if len(results[1])>len(results[0]):
-        results=[results[1],results[0]]
-    return results
-
-def threadings1(p, limit, initial_values): #when in supercritical state, reads rods position at the same time as the ODE's are solved so that compiling time is shorter;
-    if __name__ == "__main__":           #same as threadings(), but it receives ODE's since geometric sum is no longer valid; uses AFG function to control the instruments
-        positions1 = [[2321, 2331], [3129, 3139], [3937, 3947], [4745, 4755], [5553, 5563], [6361, 6371]]
-        positions2 = [[2339, 2346], [3145, 3152], [3951, 3959], [4758, 4766]]
-
-        result_queue = queue.Queue()
-        result_queue1= queue.Queue()
-
-        th1 = threading.Thread(target = values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue))
-        th2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue))
-        th3 = threading.Thread(target = AFG_signals, args=(p, limit, initial_values, result_queue1))
-        #th4 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue))
-
-        th1.start()
-        th2.start()
-        th3.start()
-        #th4.start()
-        
-        th1.join()
-        th2.join()
-        th3.join()
-        #th4.join()
-        
-        # Collect results from the queue
-
-        results = []
-        while not result_queue.empty():
-            results.append(result_queue.get())
-
-    '''for lst in results:
-        if len(lst) == 4 and round(lst[3], 2) == 0: # truta has length 4 and its CH4 has no readings
-            truta = lst
-        elif len(lst) == 6:
-            carapau = lst
-    salmao = [lst for lst in results if lst not in [carapau, truta]][0] #exclusion of parts
-    results = [carapau, salmao, truta] #ensure that the order of the readings is [carapau, salmao, truta]
-    results.append(result_queue1.get()) #last value of the results list is the list calculated by coefficients_solver 
-    return results'''
-    if len(results[1])>len(results[0]):
-        results=[results[1],results[0]]
-    results.append(result_queue1.get())
-    return results
-
-day = datetime.datetime.now().strftime("%d-%m-%Y") #gives date in format day-month-year
-counter = 0
-filepath = os.path.join(day, f'values_{counter}.csv') #create filepath: a folder named with the current date
-if not os.path.exists(day):
-    os.mkdir(day)  # Create the directory if it doesn't exist
-while os.path.exists(filepath): #if the current file path doesn't exist, create the file
-    counter += 1 
-    filepath = os.path.join(day, f'values_{counter}.csv')   
-
-counts_list = []
-current_list = []
-t_list = []
-k_list_values = []
-period_values = []
-CH1_SALMAO = [] #counts 
-CH2_SALMAO = [] #periodo
-CH1_TRUTA = [] #periodo
-CH2_TRUTA = [] #corrente log
-CH3_TRUTA = [] #linear power
-
-t5 = 0
-
-def data(counts, current, t, k, period, salmao):#, truta): #save data to CSV file to then open with a notebook
-    
-    global t5 #global variable t5
-    
-    counts_list.append(counts)
-    current_list.append(current)
-    t_list.append(t)
-    k_list_values.append(k)
-    period_values.append(period)
-    CH1_SALMAO.append(salmao[0]) 
-    CH2_SALMAO.append(salmao[1]) 
-    #CH1_TRUTA.append(truta[0])
-    #CH2_TRUTA.append(truta[1])
-    #CH3_TRUTA.append(truta[2])
-
-    if t - t5 >= 1:
-        with open(filepath, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['Time', 'Counts', 'Current', 'k', 'Period',
-                            'CH1_SALMAO', 'CH2_SALMAO'])#, 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA'])  # Write header
-            writer.writerows(zip(t_list, counts_list, current_list, k_list_values, period_values,
-                                CH1_SALMAO, CH2_SALMAO))#, CH1_TRUTA, CH2_TRUTA, CH3_TRUTA))  # Write rows of lists
-        t5 = t
-
-t_initial = time.time()
-
-def simulation(source, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
-    activate_instruments()
-    cont = True
-    cont_true_list = []
-    cont_true_list.append(cont)
-    counts = 11 #counts associated to all bars at 0%
-    k_value = 1 - source/counts #k asssociated at 11 counts
-    initial_values = [counts,
+# Initial conditions
+counts = 11 #counts associated to all bars at 0%
+initial_values = [counts,
                     (beta[0]*counts)/(Lambda[0]*l),
                     (beta[1]*counts)/(Lambda[1]*l),
                     (beta[2]*counts)/(Lambda[2]*l),
                     (beta[3]*counts)/(Lambda[3]*l),
                     (beta[4]*counts)/(Lambda[4]*l),
-                    (beta[5]*counts)/(Lambda[5]*l)] #initial approximation of the 7 variables
-    
-    while 10 < initial_values[0] < 10**12:
-        if initial_values[0] < 100:
-            k_list = [k_value]*30 # this list will be used to store new values of k to average them, to reduce the noise. len 30 for a slow start
-        else:
-            k_list = [k_value]*10 # len 10 for a more rapid k calculation
-        k_value = round(root_mean_squared(k_list), 5)
-        t3 = time.time()
-    
-        while k_value < 1 and cont == True:
+                    (beta[5]*counts)/(Lambda[5]*l)]
 
-            carapau = threadings()[0] #voltage readings from CARAPAU
-            salmao = threadings()[1] #voltage readings from SALMAO
-            #truta = threadings()[2] #voltage readings from TRUTA
+#initial_values = [0, 0, 0, 0, 0, 0, 0]
 
-            del carapau[-1] #deleting last value from CARAPAU because it's not used            
-            
-            new_counts = continuation(initial_values[0], k_value, source, time.time() - t3)
-            current = 100*10**-12 / (5*10**3) * new_counts #current-counts proportionality, 5kcps<->100pA
+# Solve the differential equation
+sol = odeint(dSdt, initial_values, t)
 
-            afg_command(new_counts)
-            keithley_command(current)
-            
-            t3 = time.time()
-            initial_values=[new_counts,
-                            (beta[0]*counts)/(Lambda[0]*l),
-                            (beta[1]*counts)/(Lambda[1]*l),
-                            (beta[2]*counts)/(Lambda[2]*l),
-                            (beta[3]*counts)/(Lambda[3]*l),
-                            (beta[4]*counts)/(Lambda[4]*l),
-                            (beta[5]*counts)/(Lambda[5]*l)]
-            print([f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}'])
-            new_k = k(carapau, criticality) #new k calculated with the function k
-            del k_list[0]
-            k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
-            k_value = round(root_mean_squared(k_list), 5)
-            period = ld / (k_value-1)
-            data(initial_values[0], current, t3-t_initial, k_value, period, salmao)#, truta)
-            
-        counts = initial_values[0]
-        p = [((k_value - 1) / k_value)] * 10 #list of ractivities to average (to decrease noise)
-        initial_values = [counts,
-                        (beta[0]*counts)/(Lambda[0]*l),
-                        (beta[1]*counts)/(Lambda[1]*l),
-                        (beta[2]*counts)/(Lambda[2]*l),
-                        (beta[3]*counts)/(Lambda[3]*l),
-                        (beta[4]*counts)/(Lambda[4]*l),
-                        (beta[5]*counts)/(Lambda[5]*l)]
-        
-        previous_values = [counts]*100
-        cont = False
-        times = [0.09] * len(previous_values) #where does the 0.09 comes from?
-        
-        while cont == False and initial_values[0] < 10**12: #Second cycle supercritical state.
-            t4 = time.time()
-            z = threadings1(sum(p)/len(p), 0.1, initial_values) #[carapau, salmao, ODE solution vector]
-            
-            p1 = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #usar k() aqui
-            del p[0]
-            p = p + [p1]
+# sol contains the solution at each time point
 
-            salmao = z[1]
-            #truta = z[2]
+#p = cs_1(-100/(11*60)*(t-500)+55.5) + cs_2(-100/(11*60)*(t-500)+56.5) + cs_3(-100/(11*60)*(t-500)+56.5) + cs_4(-100/(11*60)*(t-500)+56.5) + cs_r(-100/(11*60)*(t-500)+7.59)-9093
+#print(p[500:550])
+#plt.plot(t, p)
+#plt.show()
+plt.plot(t, sol.T[0])
 
-            initial_values1 = z[-1] # [O.D.E solution vector]
-            del previous_values[0]
-            previous_values = previous_values+[initial_values1[0]]
+plt.annotate(r'$\rho = 100$', xy=(13, 11), xytext=(100, 6), arrowprops=dict(facecolor='red', shrink=0.0005))
+plt.annotate(r'$\rho = 0$', xy=(210, 260), xytext=(300, 260), arrowprops=dict(facecolor='red', shrink=0.0005))
+plt.annotate('RUN IN', xy=(510, 180), xytext=(600, 190), arrowprops=dict(facecolor='red', shrink=0.0005))
+plt.xlabel('$Time$')
+plt.ylabel('$n$')
+plt.xlim(495, 515)  # Adjust the values as per your requirement
 
-            p_value = round(sum(p)/len(p) * 10**5, 2) #reactivity given in pcm
-            period = tau(previous_values[-1], previous_values[0], sum(times), 1/(1-p_value)) #reactor period 
-            p_inhour = round(Inhour(period, 1/(1-p_value)), 5) * 10**5
-            current = 100*10**-12 / (5*10**3) * initial_values1[0]
-            if current > 10**-4:
-                current = 10**-4
-
-            if abs(previous_values[-1] - previous_values[0]) < 0.1:
-                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]:.3e}, Period: inf, Cont: {cont}'])
-            else:
-                print([f'p (pcms): {p_value}, p(inhour): {p_inhour}, Counts: {initial_values1[0]:.3e}, Period: {period:.3e}, Current: {current:.3e}, Cont: {cont}']) ### !!! OUTPUT IN CRITICAL STATE !!!
-
-            initial_values = initial_values1
-            k_value = round(-1/(p1-1), 5)
-            data(initial_values[0], current, t4-t_initial, k_value, period, salmao)#, truta)
-
-            if source / (1-k_value) > initial_values[0] and k_value <= 0.99999: #making sure that counts do not go below theoretical level of 1/1-k when in subcritical state
-                cont = True                                                      #sends back to startup channel
-            else:
-                cont = False
-            
-            del times[0]
-
-            h=0.0001 #Taylor method being used here
-            i=0 
-            while h*i < time.time()-t4-0.1:
-                initial_values = taylor_polinomial(initial_values, h, p[-1])
-                i += 1
-
-            times = times + [time.time() - t4]
-            
-    off() #shuts off the instruments after the loop ends
-
-
-simulation(2, 9093) #why source=2?
+#plt.title("Reactivity insertion of $\\rho=5pcm$ at $t=0$," + ' ' + "and $\\rho=-100pcm$ at $t=300$.")
+#plt.savefig('reactivity evolution', dpi=300, bbox_inches='tight')
+plt.show()
