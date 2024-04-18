@@ -163,6 +163,9 @@ def activate_instruments(): #using SCPI commands
     time.sleep(10)
 
 def afg_command(counts): #for CH1 and CH2
+    if counts > 30000:
+        instrument.write('SOUR1:FREQ '+str(30000)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
+        instrument.write('SOUR2:FREQ '+str(30000)+'Hz')
     instrument.write('SOUR1:FREQ '+str(counts)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
     instrument.write('SOUR2:FREQ '+str(counts)+'Hz')
     instrument.write('SOUR1:PULS:WIDTH 200ns')
@@ -175,39 +178,42 @@ def keithley_command(current):
     keithley.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
     keithley.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
 
-def AFG_signals(p, limit, initial_values, result_queue): 
-    '''t1 = time.time()
-    t2 = time.perf_counter()
-    w = 0
-    current = 100*10**-12 / (5*10**3) * initial_values[0] #current-counts proportionality, 5kcps<->100pA 
-    while time.time()-t1 < limit:
-         #continues to send signals to the source range until 1MHz, limit is given by the average reading time of the yokogawa
-        initial_values = coefficients_solver(initial_values, abs(time.perf_counter()-t2+w), p) #coefficients_solver solves the system of ODE's
-        #meter aqui novo metodo de resolver ode
-        t2 = (time.perf_counter())
-        w = initial_values[-1]
-        del initial_values[-1]'''
+def AFG_signals(p, limit, initial_values, result_queue):     
     t1 = time.time()
-    h = 0.0001
+    h = 0.001
     i = 0
     while i*h < limit:
          ## continua a mandar sinais de tensao at]e 1MHz para a source Range, limit é dado pelo tempo médio de leitura do yokogawa
         initial_values = taylor_polinomial(initial_values, h, p) #coefficients_solver resolver o sistema de ODE's
         i += 1
-        current = 100*10**-12/(2*10**4)*initial_values[0] #current-counts proportionality, 20kcps<->100pA
+        current = 100*10**-12/(5*10**3)*initial_values[0] #current-counts proportionality, 5kcps<->100pA
 
     if initial_values[0] < 3*10**4: #rods inhibit safety action of SourceRange starts at 50kcps, stop sending signals at 30kcps
-        afg_command(initial_values[0])
+        afg_command(initial_values[0]) #writes in the afg the value of the counts given by the coefficients_solver
         keithley_command(current)
-    elif current < 10**-4:
-        afg_command(30000) #writes in the afg the value of the counts given by the coefficients_solver
+        if time.time()-t1 > 0.1:
+            print('LENTO', time.time()-t1)
+            keithley.clear()
+
+    elif initial_values[0] >= 3*10**4 and current < 10**-4: 
+        afg_command(30000) # at 30kcps keeps sending 30kHz so the rods inhibit of the source range are not activated
         keithley_command(current)
+        if time.time()-t1 > 0.005:
+            print('LENTO', time.time()-t1)
+            keithley.clear()
+
     else:
         afg_command(30000)
         keithley_command(10**-4)
+        if time.time()-t1 > 0.1:
+            print('LENTO', time.time()-t1)
+            keithley.clear()
+
     while abs(time.time() - t1) < limit:
         continue
-    result_queue.put(initial_values) #multithreading 
+    result_queue.put(initial_values) #multithreading
+
+
 
 def off(): #shuts outputs when the counts are out of range of operation
     instrument.write('OUTP1 OFF')
@@ -224,31 +230,31 @@ def threadings(): # initial thread only used when in subcritical state; reads va
 
         th1 = threading.Thread(target = values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue)) #carapau
         th2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue)) #salmao
-        #th3 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue)) #truta
+        th3 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue)) #truta
     
         th1.start() #start the threading
         th2.start()
-        #th3.start()
+        th3.start()
         
         th1.join() #joins the threading, output is given when both readings are complete
         th2.join()
-        #th3.join()
+        th3.join()
         
         # Collect results from the queue
         results = []
         while not result_queue.empty():
             results.append(result_queue.get())
-    '''for lst in results:
+    for lst in results:
         if len(lst) == 4 and round(lst[3], 2) == 0: # truta has length 4 and its CH4 has no readings
             truta = lst
         elif len(lst) == 6:
             carapau = lst
     salmao = [lst for lst in results if lst not in [carapau, truta]][0] #exclusion of parts
     results = [carapau, salmao, truta] #ensure that the order of the readings is [carapau, salmao, truta]
-    return results #readings from carapau and salmao'''
-    if len(results[1])>len(results[0]):
+    return results #readings from carapau and salmao
+    '''if len(results[1])>len(results[0]):
         results=[results[1],results[0]]
-    return results
+    return results'''
 
 def threadings1(p, limit, initial_values): #when in supercritical state, reads rods position at the same time as the ODE's are solved so that compiling time is shorter;
     if __name__ == "__main__":           #same as threadings(), but it receives ODE's since geometric sum is no longer valid; uses AFG function to control the instruments
@@ -261,25 +267,24 @@ def threadings1(p, limit, initial_values): #when in supercritical state, reads r
         th1 = threading.Thread(target = values, args=('http://10.10.15.20/cgi-bin/moni/allch.cgi', positions1, result_queue))
         th2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue))
         th3 = threading.Thread(target = AFG_signals, args=(p, limit, initial_values, result_queue1))
-        #th4 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue))
+        th4 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue))
 
         th1.start()
         th2.start()
         th3.start()
-        #th4.start()
+        th4.start()
         
         th1.join()
         th2.join()
         th3.join()
-        #th4.join()
+        th4.join()
         
         # Collect results from the queue
 
         results = []
         while not result_queue.empty():
             results.append(result_queue.get())
-
-    '''for lst in results:
+    for lst in results:
         if len(lst) == 4 and round(lst[3], 2) == 0: # truta has length 4 and its CH4 has no readings
             truta = lst
         elif len(lst) == 6:
@@ -287,11 +292,11 @@ def threadings1(p, limit, initial_values): #when in supercritical state, reads r
     salmao = [lst for lst in results if lst not in [carapau, truta]][0] #exclusion of parts
     results = [carapau, salmao, truta] #ensure that the order of the readings is [carapau, salmao, truta]
     results.append(result_queue1.get()) #last value of the results list is the list calculated by coefficients_solver 
-    return results'''
-    if len(results[1])>len(results[0]):
+    return results
+    '''if len(results[1])>len(results[0]):
         results=[results[1],results[0]]
     results.append(result_queue1.get())
-    return results
+    return results'''
 
 day = datetime.datetime.now().strftime("%d-%m-%Y") #gives date in format day-month-year
 counter = 0
@@ -313,11 +318,11 @@ CH1_TRUTA = [] #periodo
 CH2_TRUTA = [] #corrente log
 CH3_TRUTA = [] #linear power
 
-t5 = 0
+t2 = 0
 
-def data(counts, current, t, k, period, salmao):#, truta): #save data to CSV file to then open with a notebook
+def data(counts, current, t, k, period, salmao, truta): #save data to CSV file to then open with a notebook
     
-    global t5 #global variable t5
+    global t2 #global variable t2
     
     counts_list.append(counts)
     current_list.append(current)
@@ -326,22 +331,24 @@ def data(counts, current, t, k, period, salmao):#, truta): #save data to CSV fil
     period_values.append(period)
     CH1_SALMAO.append(salmao[0]) 
     CH2_SALMAO.append(salmao[1]) 
-    #CH1_TRUTA.append(truta[0])
-    #CH2_TRUTA.append(truta[1])
-    #CH3_TRUTA.append(truta[2])
+    CH1_TRUTA.append(truta[0])
+    CH2_TRUTA.append(truta[1])
+    CH3_TRUTA.append(truta[2])
 
-    if t - t5 >= 1:
+    if t - t2 >= 1:
         with open(filepath, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Time', 'Counts', 'Current', 'k', 'Period',
-                            'CH1_SALMAO', 'CH2_SALMAO'])#, 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA'])  # Write header
+                            'CH1_SALMAO', 'CH2_SALMAO', 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA'])  # Write header
             writer.writerows(zip(t_list, counts_list, current_list, k_list_values, period_values,
-                                CH1_SALMAO, CH2_SALMAO))#, CH1_TRUTA, CH2_TRUTA, CH3_TRUTA))  # Write rows of lists
-        t5 = t
+                                CH1_SALMAO, CH2_SALMAO, CH1_TRUTA, CH2_TRUTA, CH3_TRUTA))  # Write rows of lists
+        t2 = t
 
 t_initial = time.time()
 
+
 def simulation(source, criticality): ### This is a simulation of the bars with the reactor. Variable A is the constant of proportion betweenthe minimal number of counts and k
+
     activate_instruments()
     cont = True
     cont_true_list = []
@@ -356,7 +363,7 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
                     (beta[4]*counts)/(Lambda[4]*l),
                     (beta[5]*counts)/(Lambda[5]*l)] #initial approximation of the 7 variables
     
-    while 10 < initial_values[0] < 10**12:
+    while 10 < initial_values[0] < 10**15:
         if initial_values[0] < 100:
             k_list = [k_value]*30 # this list will be used to store new values of k to average them, to reduce the noise. len 30 for a slow start
         else:
@@ -365,19 +372,25 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
         t3 = time.time()
     
         while k_value < 1 and cont == True:
-
-            carapau = threadings()[0] #voltage readings from CARAPAU
-            salmao = threadings()[1] #voltage readings from SALMAO
-            #truta = threadings()[2] #voltage readings from TRUTA
+            
+            z = threadings()
+            carapau = z[0] #voltage readings from CARAPAU
+            salmao = z[1] #voltage readings from SALMAO
+            truta = z[2] #voltage readings from TRUTA
 
             del carapau[-1] #deleting last value from CARAPAU because it's not used            
             
             new_counts = continuation(initial_values[0], k_value, source, time.time() - t3)
             current = 100*10**-12 / (5*10**3) * new_counts #current-counts proportionality, 5kcps<->100pA
 
+            t4 = time.time()
             afg_command(new_counts)
             keithley_command(current)
-            
+            if time.time() - t4 > 0.1: #this cycle is to clear the buffer of keithley
+                print('LENTO', time.time()-t4)
+                keithley.clear()
+            time.sleep(0.1)
+
             t3 = time.time()
             initial_values=[new_counts,
                             (beta[0]*counts)/(Lambda[0]*l),
@@ -386,13 +399,15 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
                             (beta[3]*counts)/(Lambda[3]*l),
                             (beta[4]*counts)/(Lambda[4]*l),
                             (beta[5]*counts)/(Lambda[5]*l)]
+            
             print([f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}'])
             new_k = k(carapau, criticality) #new k calculated with the function k
             del k_list[0]
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
             k_value = round(root_mean_squared(k_list), 5)
             period = ld / (k_value-1)
-            data(initial_values[0], current, t3-t_initial, k_value, period, salmao)#, truta)
+            data(initial_values[0], current, t3-t_initial, k_value, period, salmao, truta)
+
             
         counts = initial_values[0]
         p = [((k_value - 1) / k_value)] * 10 #list of ractivities to average (to decrease noise)
@@ -407,25 +422,26 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
         previous_values = [counts]*100
         cont = False
         times = [0.09] * len(previous_values) #where does the 0.09 comes from?
-        
-        while cont == False and initial_values[0] < 10**12: #Second cycle supercritical state.
-            t4 = time.time()
+
+        while cont == False and initial_values[0] < 10**15: #Second cycle supercritical state.
+            t5 = time.time()
             z = threadings1(sum(p)/len(p), 0.1, initial_values) #[carapau, salmao, ODE solution vector]
+            time.sleep(0.01)
             
             p1 = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #usar k() aqui
             del p[0]
             p = p + [p1]
 
             salmao = z[1]
-            #truta = z[2]
+            truta = z[2]
 
-            initial_values1 = z[-1] # [O.D.E solution vector]
+            initial_values1 = z[-1] # [O.D.E solution vector]   
             del previous_values[0]
             previous_values = previous_values+[initial_values1[0]]
 
             p_value = round(sum(p)/len(p) * 10**5, 2) #reactivity given in pcm
             period = tau(previous_values[-1], previous_values[0], sum(times), 1/(1-p_value)) #reactor period 
-            p_inhour = round(Inhour(period, 1/(1-p_value)), 5) * 10**5
+            p_inhour = round(Inhour(period, 1/(1-p_value)), 5) * 10**5 #get p from inhour equation. if this p is similiar to the given by the rods, the period is being well calculated
             current = 100*10**-12 / (5*10**3) * initial_values1[0]
             if current > 10**-4:
                 current = 10**-4
@@ -437,7 +453,9 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
 
             initial_values = initial_values1
             k_value = round(-1/(p1-1), 5)
-            data(initial_values[0], current, t4-t_initial, k_value, period, salmao)#, truta)
+
+            data(initial_values[0], current, t5-t_initial, k_value, period, salmao, truta)
+
 
             if source / (1-k_value) > initial_values[0] and k_value <= 0.99999: #making sure that counts do not go below theoretical level of 1/1-k when in subcritical state
                 cont = True                                                      #sends back to startup channel
@@ -448,11 +466,11 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
 
             h=0.0001 #Taylor method being used here
             i=0 
-            while h*i < time.time()-t4-0.1:
+            while h*i < time.time()-t5-0.1:
                 initial_values = taylor_polinomial(initial_values, h, p[-1])
                 i += 1
 
-            times = times + [time.time() - t4]
+            times = times + [time.time() - t5]
             
     off() #shuts off the instruments after the loop ends
 
