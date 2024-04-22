@@ -27,17 +27,45 @@ cs_r = CubicSpline(x,yr)
 
 t = np.linspace(0, 1000, 10000)
 
+
+#p_list = []
+
+#cs1 301.92
+#cs2 322.05
+#cs3 339
+#cs4 327.7
+#csr 
+
+def rods(t):
+    if t < 301.92+500: #all rods
+        p = (cs_1(-100/(9*60+4)*(t-500)+55.5) + cs_2(-100/(9*60+30)*(t-500)+56.5) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5)-9093)*10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    elif 301.92 +500<= t < 322.05+500: #rod1 at 0% already
+        p = (cs_1(0) + cs_2(-100/(9*60+30)*(t-500)+56.5) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5)-9093)*10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    elif 322.05 +500<= t < 327.7+500: #rod1 and 2 at 0%
+        p = (cs_1(0) + cs_2(0) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5)-9093)*10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    elif 327.7+500 <= t < 339+500:
+        p = (cs_1(0) + cs_2(0) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(0)-9093)*10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    else:
+        p = (cs_1(0) + cs_2(0) + cs_3(0) + cs_4(0) - 9093) * 10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    return p
+
+p_list = []
 def p_function(t):
-    p = (cs_1(-100/(9*60+4)*(t-500)+55.5) + cs_2(-100/(9*60+30)*(t-500)+56.5) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5) + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5
-    if t < 200:
+    p = rods(t)
+    #for t in time: 
+    #p = (cs_1(-100/(9*60+4)*(t-500)+55.5) + cs_2(-100/(9*60+30)*(t-500)+56.5) + cs_3(-100/(10*60)*(t-500)+56.5) + cs_4(-100/(9*60+40)*(t-500)+56.5)-9093)*10**-5 # + cs_r(-100/(55)*(t-500)+0)-9093)*10**-5   
+    #print(cs_1(-100/(9*60+4)*(t-500)+55.5),cs_2(-100/(9*60+30)*(t-500)+56.5),cs_3(-100/(10*60)*(t-500)+56.5),cs_4(-100/(9*60+40)*(t-500)+56.5))
+    if t < 450:
+        #p_list.append(100)
         return 100e-5
-    elif 200 < t < 500:
+    elif 450 < t < 500:
+        #p_list.append(0)
         return 0
     else:
         if p < -9093e-5:
             p = -9093e-5
-        #print(p*10**5)
-        return p
+        p_list.append(p)
+        return p  
 
 def dSdt(S, t):  # return state vector of point reactor kinetic equations ODE's
     n, C1, C2, C3, C4, C5, C6 = S
@@ -68,20 +96,21 @@ initial_values = [counts,
 sol = odeint(dSdt, initial_values, t)
 
 # sol contains the solution at each time point
-
-#p = cs_1(-100/(11*60)*(t-500)+55.5) + cs_2(-100/(11*60)*(t-500)+56.5) + cs_3(-100/(11*60)*(t-500)+56.5) + cs_4(-100/(11*60)*(t-500)+56.5) + cs_r(-100/(11*60)*(t-500)+7.59)-9093
-#print(p[500:550])
-#plt.plot(t, p)
-#plt.show()
 plt.plot(t, sol.T[0])
 
 plt.annotate(r'$\rho = 100$', xy=(13, 11), xytext=(100, 6), arrowprops=dict(facecolor='red', shrink=0.0005))
-plt.annotate(r'$\rho = 0$', xy=(210, 260), xytext=(300, 260), arrowprops=dict(facecolor='red', shrink=0.0005))
-plt.annotate('RUN IN', xy=(510, 180), xytext=(600, 190), arrowprops=dict(facecolor='red', shrink=0.0005))
+plt.annotate(r'$\rho = 0$', xy=(430, sol.T[0][4500]), xytext=(290, sol.T[0][4500]), arrowprops=dict(facecolor='red', shrink=0.0005))
+plt.annotate('RUN IN', xy=(510, sol.T[0][5000]), xytext=(600, sol.T[0][5000]), arrowprops=dict(facecolor='red', shrink=0.0005))
 plt.xlabel('$Time$')
 plt.ylabel('$n$')
-plt.xlim(495, 515)  # Adjust the values as per your requirement
-
-#plt.title("Reactivity insertion of $\\rho=5pcm$ at $t=0$," + ' ' + "and $\\rho=-100pcm$ at $t=300$.")
-#plt.savefig('reactivity evolution', dpi=300, bbox_inches='tight')
+#plt.xlim(495, 800)  # Adjust the values as per your requirement
+plt.yscale('log')
+plt.ylim(1, max(sol.T[0])+10000)
+plt.title("Reactivity insertion of $\\rho=100pcm$ at $t=0$, $\\rho=0pcm$ at $t=450$ and RunIn at $t=500$.")
+plt.savefig('run_in_simulation', dpi=300, bbox_inches='tight')
 plt.show()
+
+#print(len(p_list))
+#times = np.linspace(500, 1000, 28561)
+#plt.plot(times, p_list)
+#plt.show()
