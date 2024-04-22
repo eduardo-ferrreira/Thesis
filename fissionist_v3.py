@@ -19,6 +19,7 @@ import random
 import csv
 import datetime
 import os
+import pandas as pd
 
 #Devices used using SCPI code and pyvisa
 rm = pyvisa.ResourceManager()
@@ -44,6 +45,9 @@ cs_3 = CubicSpline(x,y3)
 cs_4 = CubicSpline(x,y4)
 cs_r = CubicSpline(x,yr)
 
+df = pd.read_csv('rod_calibration.csv')
+min, max = df['min'], df['max'] #min and max values of voltage in carapau for rods at 0% and 100%
+
 #Functions
 def function(url_string): #Removes the unwanted strings from the Yokogawa Values converting them into floats
     assert type(url_string) == str
@@ -62,8 +66,9 @@ print(time.perf_counter() - t0)
 def k(z, criticality):
     assert type(z) == list and len(z) == 5 # determines the value of k based on the rods positions
     for i in range(len(z)):
-        z[i] = z[i]*20 #voltages readings from 0-5V, multiply by 20 to give in % reading
-    p=(cs_1(z[0]) + cs_2(z[1]) + cs_3(z[2]) + cs_4(z[3]) + cs_r(z[4]) - criticality)*10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
+        z[i] = 100/(max[i]-min[i])*(z[i]-min[i]) #calibration curve to give in % reading so the splines can give the correct p
+        #z[i] = z[i]*20 #voltages readings from 0-5V, multiply by 20 to give in % reading
+    p = (cs_1(z[0]) + cs_2(z[1]) + cs_3(z[2]) + cs_4(z[3]) + cs_r(z[4]) - criticality)*10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
     return -1/(p-1) #returning k
 
 def place(counts, k, source): 
@@ -198,14 +203,14 @@ def AFG_signals(p, limit, initial_values, result_queue):
     elif initial_values[0] >= 3*10**4 and current < 10**-4: 
         afg_command(30000) # at 30kcps keeps sending 30kHz so the rods inhibit of the source range are not activated
         keithley_command(current)
-        if time.time()-t1 > 0.005:
+        if time.time()-t1 > 0.02:
             print('LENTO', time.time()-t1)
             keithley.clear()
 
     else:
         afg_command(30000)
         keithley_command(10**-4)
-        if time.time()-t1 > 0.1:
+        if time.time()-t1 > 0.02:
             print('LENTO', time.time()-t1)
             keithley.clear()
 
@@ -425,7 +430,7 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
 
         while cont == False and initial_values[0] < 10**15: #Second cycle supercritical state.
             t5 = time.time()
-            z = threadings1(sum(p)/len(p), 0.1, initial_values) #[carapau, salmao, ODE solution vector]
+            z = threadings1(sum(p)/len(p), 0.2, initial_values) #[carapau, salmao, ODE solution vector]
             time.sleep(0.01)
             
             p1 = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #usar k() aqui
