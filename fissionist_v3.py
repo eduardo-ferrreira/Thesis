@@ -357,14 +357,20 @@ def threadings1(p, limit, initial_values): #when in supercritical state, reads r
     results.append(result_queue1.get())
     return results'''
 
-day = datetime.datetime.now().strftime("%d-%m-%Y") #gives date in format day-month-year
+# SAVING DATA 
+month_year = datetime.datetime.now().strftime("%m-%Y")  #current month and year in format MM-YYYY
+month_path = os.path.join(os.getcwd(), month_year)
+if not os.path.exists(month_path):
+    os.makedirs(month_path)
+day = datetime.datetime.now().strftime("%d-%m-%Y")  #current day in format DD-MM-YYYY
+day_path = os.path.join(month_path, day)
+if not os.path.exists(day_path):
+    os.makedirs(day_path)
 counter = 0
-filepath = os.path.join(day, f'values_{counter}.csv') #create filepath: a folder named with the current date
-if not os.path.exists(day):
-    os.mkdir(day)  # Create the directory if it doesn't exist
-while os.path.exists(filepath): #if the current file path doesn't exist, create the file
-    counter += 1 
-    filepath = os.path.join(day, f'values_{counter}.csv')   
+filepath = os.path.join(day_path, f'values_{counter}.csv')
+while os.path.exists(filepath):
+    counter += 1
+    filepath = os.path.join(day_path, f'values_{counter}.csv')
 
 counts_list = []
 current_list = []
