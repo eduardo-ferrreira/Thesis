@@ -1,3 +1,14 @@
+import RPi.GPIO as GPIO  
+GPIO.setmode(GPIO.BCM)       # set up BCM GPIO numbering  
+GPIO.setup(25, GPIO.IN)      # set GPIO 25 as input  
+  
+if GPIO.input(25):           # if port 25 == 1  
+    print "Port 25 is 1/GPIO.HIGH/True"  
+else:  
+    print "Port 25 is 0/GPIO.LOW/False"  
+  
+GPIO.cleanup()               # clean up after yourself 
+
 import RPi.GPIO as GPIO           # import RPi.GPIO module  
 GPIO.setmode(GPIO.BCM)            # choose BCM or BOARD  
 GPIO.setup(port_or_pin, GPIO.OUT) # set a port/pin as an output   
