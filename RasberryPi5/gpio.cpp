@@ -1,9 +1,5 @@
 #include <wiringPi.h>
 #include <iostream>
-#include <unistd.h>  // for sleep function
-
-#define OUTPUT_PIN 3
-#define INPUT_PIN 25
 
 int main() {
     // Initialize wiringPi and set pin numbering
@@ -12,22 +8,11 @@ int main() {
         return 1;
     }
 
-    // Set pin modes
-    pinMode(OUTPUT_PIN, OUTPUT);
-    pinMode(INPUT_PIN, INPUT);
-
-    while (true) {
-        // Read the state of the input pin
-        int inputState = digitalRead(INPUT_PIN);
-
-        // Print the state
-        std::cout << "GPIO" << INPUT_PIN << " = " << inputState << "\n";
-
-        // Set the output pin to match the input pin state
-        digitalWrite(OUTPUT_PIN, inputState);
-
-        // Wait for 0.3 seconds
-        usleep(300000);
+    // Set all GPIO pins to outputs and set them to high
+    for (int pin = 0; pin < 54; ++pin) { // Assuming Raspberry Pi 4 with 54 GPIO pins
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, HIGH);
+        std::cout << "GPIO" << pin << " set to high\n";
     }
 
     return 0;
