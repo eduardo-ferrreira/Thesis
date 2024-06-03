@@ -1,4 +1,15 @@
-import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO  
+GPIO.setmode(GPIO.BCM)       # set up BCM GPIO numbering  
+GPIO.setup(25, GPIO.IN)      # set GPIO 25 as input  
+  
+if GPIO.input(25):           # if port 25 == 1  
+    print("Port 25 is 1/GPIO.HIGH/True")  
+else:  
+    print("Port 25 is 0/GPIO.LOW/False")  
+  
+GPIO.cleanup()               # clean up after yourself 
+
+'''import RPi.GPIO as GPIO
 from time import sleep
 GPIO.setmode(GPIO.BCM)
 
@@ -13,11 +24,11 @@ try:
 	while True:
 		if GPIO.input(IN1):
 			print("GPIO{0}".format(IN1), "=", GPIO.input(IN1))
-			GPIO.output(IO_OUT, 1)
+			GPIO.output(IO_OUT, 0)
 		else:
 			print("GPIO{0}".format(IN1), "=", GPIO.input(IN1))
 			GPIO.output(IO_OUT, 1)
 		sleep(0.3)
 except KeyboardInterrupt: #ctrl+c to exit
 	GPIO.cleanup() #clean up ports before exit
-		
+'''
