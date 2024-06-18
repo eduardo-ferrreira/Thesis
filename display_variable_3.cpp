@@ -166,13 +166,15 @@ int main() {
 
         if (!value.empty()) {
             std::cout << "Last Value: " << value << std::endl;
+	    std::cout << "Length of value: " << value.length() << std::endl;
+	
 
             // Convert the variable to a string to display on the LCD
            // std::string value_str = std::to_string(value);
-            lcd_display("Last Value: " + value);
+            lcd_display("t: " + value);
         }
 
-        usleep(50000); // Adjust sleep duration as needed
+        usleep(100000); // Adjust sleep duration as needed
     }
 
     return 0;

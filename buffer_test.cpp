@@ -124,7 +124,7 @@ void lcd_clear() {
 
 int main() {
     lcd_init();
-    lcd_display("Hello, this is Fissionist!");
+    lcd_display("Hello, this is Fissionist! ahahahahahahah");
 
     return 0;
 }

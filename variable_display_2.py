@@ -10,7 +10,7 @@ def time_passed_since(start_time, file_path):
 
         while True:
             time_now = time.time()
-            time_passed = round(time_now - start_time, 5)
+            time_passed = round(time_now - start_time, 2)
             writer.writerow([time_passed])  # Write elapsed time to CSV
             file.flush()  # Ensure data is written to file
             time.sleep(1)

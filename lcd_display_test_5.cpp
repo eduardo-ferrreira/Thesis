@@ -122,7 +122,7 @@ int main() {
     }
 
     lcd_init();
-    lcd_display("Hello, this is FISSIONIST!");
+    lcd_display("RASPBERRY PI 5");
 
     return 0;
 }
