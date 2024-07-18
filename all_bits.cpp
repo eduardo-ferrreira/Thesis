@@ -94,32 +94,6 @@ int raspberry_pi() {
 		pullUpDnControl(gpio_pins[i], PUD_DOWN);
 	}
 
-   /*pinMode(7, INPUT);
-    pullUpDnControl(7, PUD_DOWN);
-    pinMode(8, INPUT);
-    pinMode(10, INPUT);
-    pinMode(11, INPUT);
-    pinMode(12, INPUT);
-    pinMode(13, INPUT);
-    pinMode(15, INPUT);
-    pinMode(16, INPUT);
-    pinMode(18, INPUT);
-    pinMode(19, INPUT);
-    pinMode(21, INPUT);
-    pinMode(22, INPUT);
-    pinMode(23, INPUT);
-    pinMode(24, INPUT);
-    pinMode(26, INPUT);
-    pinMode(29, INPUT);
-    pinMode(31, INPUT);
-    pinMode(32, INPUT);
-    pinMode(33, INPUT);
-    pinMode(35, INPUT);
-    pinMode(36, INPUT);
-    pinMode(37, INPUT);
-    pinMode(38, INPUT);
-    pinMode(40, INPUT);*/
-
     return 0;
 
 }
@@ -134,7 +108,6 @@ int main() {
     raspberry_pi();
 
 	// Define 24 bits GPIO pins array
-    //int gpio_pins[24] = {18, 22, 37, 13, 7, 29, 31, 26, 24, 21, 19, 23, 32, 33, 8, 10, 36, 11, 12, 35, 38, 40, 15, 16};
     int gpio_pins[24] = {24,25,26,27,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23};
     int bit_states[24]; // Array to hold the state of each GPIO pin and store in bit_states array
 
