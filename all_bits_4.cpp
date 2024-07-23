@@ -141,13 +141,15 @@ std::pair<int, std::string> get_importance(int pin, int state) {
 }
 
 // Function to get importance and message for a given combination of pin states
-std::pair<int, std::string> get_combination_importance(const std::vector<std::pair<int, int>> &pin_states) {
+std::vector<std::pair<int, std::string>> get_combination_importance(const std::vector<std::pair<int, int>> &pin_states) {
     // Define combinations of pin states with their importance and messages
     std::vector<CombinationInfo> combination_info = {
-        { {{10, HIGH}, {11, HIGH}}, 15, "BIT 10 & 11 HIGH" },
-        { {{13, LOW}, {14, LOW}, {15, LOW}} , 12, "BIT 13 14 15 LOW" }
+        { {{13, LOW}, {14, LOW}, {15, LOW}}, 12, "BIT 13 14 15 LOW" },
+        { {{10, HIGH}, {11, HIGH}}, 15, "BIT 10 & 11 HIGH" }
         // Add more combinations as needed
     };
+
+    std::vector<std::pair<int, std::string>> matching_combinations;
 
     // Iterate over all combinations
     for (const auto& combo : combination_info) {
@@ -164,22 +166,30 @@ std::pair<int, std::string> get_combination_importance(const std::vector<std::pa
             }
         }
         if (match) {
-            return std::make_pair(combo.importance, combo.message);
+            // Print the detected combination and its importance
+            std::cout << "Detected combination: ";
+            for (const auto& pin_state : combo.pin_states) {
+                std::cout << "{Pin: " << pin_state.first << ", State: " << (pin_state.second == HIGH ? "HIGH" : "LOW") << "} ";
+            }
+            std::cout << "| Importance: " << combo.importance << " | Message: " << combo.message << std::endl;
+
+            matching_combinations.push_back(std::make_pair(combo.importance, combo.message));
         }
     }
 
-    // Default return value if no combination is found
-    return std::make_pair(0, "Unknown");
-}
-
-
-void print_sorted_importances(const std::vector<std::pair<int, std::string>>& importance_messages) {
-    std::cout << "Sorted Pins + Combinations Importances and Messages:" << std::endl;
-    for (const auto& im : importance_messages) {
-        std::cout << "Importance: " << im.first << " | Message: " << im.second << std::endl;
+    // If no combinations matched, return the default value
+    if (matching_combinations.empty()) {
+        return {std::make_pair(0, "Unknown")};
     }
-}
 
+    // Sort the matching combinations by importance in descending order
+    std::sort(matching_combinations.begin(), matching_combinations.end(),
+        [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
+            return a.first > b.first;
+        });
+
+    return matching_combinations;
+}
 
 int main() {
     if (wiringPiSetupGpio() == -1) {
@@ -198,7 +208,6 @@ int main() {
     }
 
     while (true) {
-        std::vector<PinInfo> pin_info;
         std::vector<std::pair<int, int>> pin_states;
 
         // Read pin states
@@ -208,40 +217,19 @@ int main() {
         }
 
         // Collect importance and messages from combinations
-        std::vector<std::pair<int, std::string>> importance_messages;
-        
-        // Check for combination importance first
-        auto [combo_importance, combo_message] = get_combination_importance(pin_states);
-        if (combo_importance > 0) {
-            importance_messages.push_back({combo_importance, combo_message});
-        }
+        std::vector<std::pair<int, std::string>> importance_messages = get_combination_importance(pin_states);
 
-        std::cout << "Combinations importance:" << std::endl;
-        for (const auto& im : importance_messages) {
-        std::cout << "Importance: " << im.first << " | Message: " << im.second << std::endl;
-        }
-
-        // Check for individual pin importance
+        // Collect importance and messages from individual pins
         for (const auto& ps : pin_states) {
             auto [importance, message] = get_importance(ps.first, ps.second);
-            if (importance > 0) {
-                importance_messages.push_back({importance, message});
-            }
+            importance_messages.push_back(std::make_pair(importance, message));
         }
 
-        std::cout << "Combinations + Pins importance:" << std::endl;
-        for (const auto& im : importance_messages) {
-        std::cout << "Importance: " << im.first << " | Message: " << im.second << std::endl;
-        }
-
-        // Sort all collected messages by importance (descending)
+        // Sort all messages by importance
         std::sort(importance_messages.begin(), importance_messages.end(),
             [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
                 return a.first > b.first;
             });
-
-        // Print sorted importances and messages
-        print_sorted_importances(importance_messages);
 
         // Display the top two messages
         std::string first_line_message = (importance_messages.size() > 0) ? importance_messages[0].second : "";
@@ -250,7 +238,7 @@ int main() {
         lcd_display(first_line_message, LCD_LINE_1);
         lcd_display(second_line_message, LCD_LINE_2);
 
-        delay(10000); // Wait for 1 second before checking again
+        delay(2000);
     }
 
     return 0;
