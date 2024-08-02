@@ -5,6 +5,8 @@
 #include <string>
 #include <algorithm>
 #include <utility> // for std::pair
+#include <fstream>
+#include <cctype>   // For isdigit and isspace
 
 #define I2C_ADDR 0x27 // I2C address of your LCD
 #define LCD_CHR 1 // Mode - sending data
@@ -166,12 +168,12 @@ std::vector<std::pair<int, std::string>> get_combination_importance(const std::v
             }
         }
         if (match) {
-            // Print the detected combination and its importance
+            /* Print the detected combination and its importance
             std::cout << "Detected combination: ";
             for (const auto& pin_state : combo.pin_states) {
                 std::cout << "{Pin: " << pin_state.first << ", State: " << (pin_state.second == HIGH ? "HIGH" : "LOW") << "} ";
             }
-            std::cout << "| Importance: " << combo.importance << " | Message: " << combo.message << std::endl;
+            std::cout << "| Importance: " << combo.importance << " | Message: " << combo.message << std::endl;*/
 
             matching_combinations.push_back(std::make_pair(combo.importance, combo.message));
         }
@@ -189,6 +191,40 @@ std::vector<std::pair<int, std::string>> get_combination_importance(const std::v
         });
 
     return matching_combinations;
+}
+
+// Function to filter out non-numeric characters except for the decimal point and minus sign
+std::string filterNonNumeric(const std::string& input) {
+    std::string result;
+    result.reserve(input.size()); // Reserve space to avoid multiple allocations
+
+    bool decimalPointEncountered = false;
+    bool negativeSignEncountered = false;
+
+    for (char ch : input) {
+        if (std::isdigit(ch) || ch == '.' || ch == '-' || std::isspace(ch)) {
+            // Handle negative sign and decimal point
+            if (ch == '-' && !negativeSignEncountered) {
+                // Allow the minus sign only if it is at the beginning or after a space
+                if (result.empty() || std::isspace(result.back())) {
+                    result.push_back(ch);
+                    negativeSignEncountered = true;
+                }
+            } else if (ch == '.' && !decimalPointEncountered) {
+                // Allow the decimal point only if it is not already in the result
+                result.push_back(ch);
+                decimalPointEncountered = true;
+            } else if (std::isdigit(ch)) {
+                result.push_back(ch);
+            }
+        }
+    }
+
+    // Remove leading and trailing spaces
+    result.erase(result.find_last_not_of(" \t\n\r\f\v") + 1);
+    result.erase(0, result.find_first_not_of(" \t\n\r\f\v"));
+
+    return result;
 }
 
 int main() {
@@ -225,21 +261,44 @@ int main() {
             importance_messages.push_back(std::make_pair(importance, message));
         }
 
-        // Sort all messages by importance
         std::sort(importance_messages.begin(), importance_messages.end(),
             [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
                 return a.first > b.first;
             });
 
-        // Display the top two messages
         std::string first_line_message = (importance_messages.size() > 0) ? importance_messages[0].second : "";
         std::string second_line_message = (importance_messages.size() > 1) ? importance_messages[1].second : "";
 
-        lcd_display(first_line_message, LCD_LINE_1);
-        lcd_display(second_line_message, LCD_LINE_2);
+        std::ifstream infile("/home/fissionist/RaspberryPi/variable.txt");
+        double k;
 
-        delay(2000);
+        if (infile) {
+            std::string k_string;
+            if (std::getline(infile, k_string)) {
+                
+                std::string k_value = filterNonNumeric(k_string);
+                k = std::stod(k_value);     
+                if (k > 0.975 && k < 1.001){
+                    lcd_display(k_value, LCD_LINE_1);
+                    lcd_display(first_line_message, LCD_LINE_2);
+                } else {
+                    lcd_display(first_line_message, LCD_LINE_1);
+                    lcd_display(second_line_message, LCD_LINE_2);
+                    }
+            }
+        }
+
+        if (first_line_message == "BIT 10 & 11 HIGH"){
+            int bit = 1;
+            std::cout << bit << std::endl;
+        } else {
+            int bit = 0;
+            std::cout << bit << std::endl;
+        }
+
+        delay(300);
     }
 
     return 0;
 }
+
