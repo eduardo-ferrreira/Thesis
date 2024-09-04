@@ -293,11 +293,9 @@ int main(int argc, char* argv[]) {
         std::string first_line_message = (importance_messages.size() > 0) ? importance_messages[0].second : "";
         std::string second_line_message = (importance_messages.size() > 1) ? importance_messages[1].second : "";
 
-
-
-
         const char* filename = "/home/fissionist/RaspberryPi/variable.txt";
         struct stat file_stat;
+        
 
         if (stat(filename, &file_stat) == 0) { // Check if stat was successful
 
@@ -315,13 +313,19 @@ int main(int argc, char* argv[]) {
                 if (std::getline(infile, k_string)) {
                     
                     std::string k_value = filterNonNumeric(k_string);
-                    k = std::stod(k_value);     
-                    if (k > 0.81 && k < 1.001 && seconds_since_modification < 10) {
-                        lcd_display(k_value, LCD_LINE_1);
-                        lcd_display(first_line_message, LCD_LINE_2);
+                    k = std::stod(k_value);
+                    if (seconds_since_modification < 10){
+                        if (k > 0.81 && k < 1.001) {
+                            lcd_display(k_value, LCD_LINE_1);
+                            lcd_display(first_line_message, LCD_LINE_2);
+                        } else {
+                            lcd_display(first_line_message, LCD_LINE_1);
+                            lcd_display(second_line_message, LCD_LINE_2);   
+                        }
                     } else {
                         lcd_display(first_line_message, LCD_LINE_1);
-                        lcd_display(second_line_message, LCD_LINE_2);
+                        lcd_display(second_line_message, LCD_LINE_2);   
+
                     }
                 }
             }
