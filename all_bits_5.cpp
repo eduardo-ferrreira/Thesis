@@ -7,6 +7,11 @@
 #include <utility> // for std::pair
 #include <fstream>
 #include <cctype>   // For isdigit and isspace
+#include <cstdlib> // For std::system
+#include <sstream> // For std::istringstream
+#include <unistd.h> // For close
+#include <sys/stat.h> // For struct stat and stat()
+#include <time.h>    // For time() and difftime()
 
 #define I2C_ADDR 0x27 // I2C address of your LCD
 #define LCD_CHR 1 // Mode - sending data
@@ -233,23 +238,6 @@ std::string filterNonNumeric(const std::string& input) {
     return result;
 }
 
-// Function to check if there are active SSH connections
-bool isSSHConnected() {
-    FILE* pipe = popen("who | grep 'pts/'", "r");
-    if (!pipe) return false;
-
-    char buffer[128];
-    bool sshConnected = false;
-
-    while (fgets(buffer, 128, pipe) != NULL) {
-        sshConnected = true;
-        break;
-    }
-
-    pclose(pipe);
-    return sshConnected;
-}
-
 int main(int argc, char* argv[]) {
     bool skip_lcd_init = false;
 
@@ -305,62 +293,51 @@ int main(int argc, char* argv[]) {
         std::string first_line_message = (importance_messages.size() > 0) ? importance_messages[0].second : "";
         std::string second_line_message = (importance_messages.size() > 1) ? importance_messages[1].second : "";
 
-        std::ifstream infile("/home/fissionist/RaspberryPi/variable.txt");
-        double k;
-        std::string k_value;
 
-        if (infile) {
-            std::string k_string;
-            if (std::getline(infile, k_string)) {
-                k_value = filterNonNumeric(k_string);
-                try {
-                    k = std::stod(k_value);
-                } catch (const std::invalid_argument&) {
-                    std::cerr << "Invalid number format in variable.txt" << std::endl;
-                    k = 0.0; // Or handle as needed
-                }
-            }
-        }
 
-        if (infile) {
-            std::string k_value;
-            if (std::getline(infile, k_value)) {
-                std::string filteredLine = filterNonNumeric(k_value);
-                k_value = std::stod(filteredLine);
 
-                if (isSSHConnected()) {
-                    if (k > 0.81 && k < 1.001) {
+        const char* filename = "/home/fissionist/RaspberryPi/variable.txt";
+        struct stat file_stat;
+
+        if (stat(filename, &file_stat) == 0) { // Check if stat was successful
+
+            time_t current_time = time(NULL); // Get current time
+            double seconds_since_modification = difftime(current_time, file_stat.st_mtime);
+            std::cout << seconds_since_modification << std::endl;
+
+            // Check if the file was modified in the last 10 seconds
+            //if (seconds_since_modification < 10) {
+            std::ifstream infile(filename);
+            double k;
+
+            if (infile) {
+                std::string k_string;
+                if (std::getline(infile, k_string)) {
+                    
+                    std::string k_value = filterNonNumeric(k_string);
+                    k = std::stod(k_value);     
+                    if (k > 0.81 && k < 1.001 && seconds_since_modification < 10) {
                         lcd_display(k_value, LCD_LINE_1);
                         lcd_display(first_line_message, LCD_LINE_2);
-                    }
-
-                    else {
+                    } else {
                         lcd_display(first_line_message, LCD_LINE_1);
                         lcd_display(second_line_message, LCD_LINE_2);
                     }
                 }
-
-                else {
-                    lcd_display(first_line_message, LCD_LINE_1);
-                    lcd_display(second_line_message, LCD_LINE_2);
-                }
             }
         }
 
-
-        /*// Debug statement to verify value of k
-        std::cout << "Value of k: " << k << std::endl;
-
-        // Always attempt to display on the LCD
-        if (k > 0.975 && k < 1.001) {
-            lcd_display(k_value, LCD_LINE_1);
-            lcd_display(first_line_message, LCD_LINE_2);
-        } else {
-            lcd_display(first_line_message, LCD_LINE_1);
-            lcd_display(second_line_message, LCD_LINE_2);
+              /*  } else {
+                //std::cout << "File is older than 60 seconds." << std::endl;
+                // Handle the case where the file is too old
+                lcd_display(first_line_message, LCD_LINE_1);
+                lcd_display(second_line_message, LCD_LINE_2);
+            }
+        } /*else {
+            std::cerr << "Failed to retrieve file stats." << std::endl;
         }*/
 
-        if (first_line_message == "BIT 10 & 11 HIGH") {
+        if (first_line_message == "BIT 10 & 11 HIGH"){
             int bit = 1;
             std::cout << bit << std::endl;
         } else {
@@ -368,7 +345,7 @@ int main(int argc, char* argv[]) {
             std::cout << bit << std::endl;
         }
 
-        delay(30);
+        delay(300);
     }
 
     return 0;
