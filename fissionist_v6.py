@@ -25,9 +25,9 @@ import paramiko
 #Devices used using SCPI code and pyvisa
 rm = pyvisa.ResourceManager()
 instrument = rm.open_resource('USB0::0x0699::0x0358::C018403::0::INSTR') #Arbitrary Function Generator
-keithley_2450_A = rm.open_resource('USB0::0x05E6::0x2450::04608397::0::INSTR') #Current Source Channel #?
-keithley_2450_B = rm.open_resource('USB0::0x05E6::0x2450::04636373::0::INSTR') #Current Source Channel #?
-keithley_2450_C = rm.open_resource('USB0::0x05E6::0x2450::04639284::0::INSTR') #Current Source Channel #?
+keithley_2450_A = rm.open_resource('USB0::0x05E6::0x2450::04608397::0::INSTR') #Current Source Channel 2
+keithley_2450_B = rm.open_resource('USB0::0x05E6::0x2450::04636373::0::INSTR') #Current Source Channel 3
+keithley_2450_C = rm.open_resource('USB0::0x05E6::0x2450::04639284::0::INSTR') #Current Source Channel 1
 #keithley_220 = rm.open_resource('GPIB0::12::INSTR')
 #keithley_236 = rm.open_resource('GPIB0::16::INSTR')
 
@@ -201,6 +201,8 @@ def afg_command(counts): #for CH1 and CH2
     instrument.write('SOUR2:PULS:WIDTH 200ns')
 
 def keithley_command(current):
+    if current > 10**-4:
+        current = 10**-4
     keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
     keithley_2450_A.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
     keithley_2450_A.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
@@ -517,8 +519,6 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
 
     activate_instruments()
     cont = True
-    cont_true_list = []
-    cont_true_list.append(cont)
     counts = 11 #counts associated to all bars at 0%
     k_value = 1 - source/counts #k asssociated at 11 counts
     initial_values = [counts,
@@ -538,11 +538,13 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
             
         k_list = [k_value]*5 # len 10 for a more rapid k calculation
         k_value = round(root_mean_squared(k_list), 5)
-        t3 = time.time()
+        b = time.time()
     
         while k_value < 1 and cont == True:
+
+            t_init_cycle = time.time()
             
-            z = threadings(k_value, initial_values[0], source, time.time()-t3)
+            z = threadings(k_value, initial_values[0], source, time.time()-b)
             carapau = z[0] #voltage readings from CARAPAU
             del carapau[-1] #deleting last value from CARAPAU because it's not used 
             salmao = z[1] #voltage readings from SALMAO
@@ -552,7 +554,7 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
             
             #new_counts = continuation(initial_values[0], k_value, source, time.time() - t3)
             current = 100*10**-12 / (5*10**3) * new_counts #current-counts proportionality, 5kcps<->100pA
-            t3 = time.time() # give new value to t3
+            b = time.time() # give new value to t3
             afg_command(new_counts)
             #keithley_command(current)
             #if time.time() - t4 > 1: #this cycle is to clear the buffer of keithley
@@ -577,9 +579,9 @@ def simulation(source, criticality): ### This is a simulation of the bars with t
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
             k_value = round(root_mean_squared(k_list), 5)
             period = ld / (k_value-1)
-            data(initial_values[0], current, t3-t_initial, k_value, period, salmao, truta)
+            data(initial_values[0], current, b-t_initial, k_value, period, salmao, truta)
 
-            print(time.time()-t3, raspberry_output)
+            print(time.time()-t_init_cycle, raspberry_output)
 
             
         counts = initial_values[0]
