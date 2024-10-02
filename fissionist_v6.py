@@ -74,7 +74,6 @@ def values(website, positions, result_queue): #Get the values from the Yokogawa 
     result_queue.put(values_list) #multithreading
 
 t0 = time.perf_counter()
-print(time.perf_counter() - t0)
 
 def taylor_polinomial(initial_values, interval, rhon):#, source): # method to solve these differential equations they work nice
     k = 1/(1-rhon)
@@ -92,6 +91,7 @@ def ld_function(t): #ld is not constant, it varies with the concentration of the
     ld = l * (1-sum(beta))
     for i in range(len(Lambda)):
         ld += beta[i]/Lambda[i]*(1-np.exp(-Lambda[i]*t))
+    print('ld: ', ld)
     return ld
 
 def k(z, criticality):
@@ -108,11 +108,11 @@ def place(counts, k, source):
                                                          #dois logs apenas para mudar de base
 
 def continuation(counts, k, source, time, ld):#, result_queue):
-    if round(counts,8) == round(source/(1-k),8):
-        counts = counts
-    elif round(counts,8) > source/(1-k):
-        print("counts>S/(1-k)", counts, source/(1-k))
-        counts = counts * math.exp((k-1) * time/(ld*10)) #one group approximation para resolver problemas devido a ruído
+    if round(counts, 8) >= round(source/(1-k), 8):
+        counts = round(source/(1-k),8)
+    #elif round(counts,8) > source/(1-k):
+        #print("counts>S/(1-k)", counts, source/(1-k))
+        #counts = counts * math.exp((k-1) * time/(ld*10)) #one group approximation para resolver problemas devido a ruído
         #counts = source/(1-k)
     else:
         n = place(counts,k,source)
@@ -162,21 +162,35 @@ def activate_instruments(): #using SCPI commands
     instrument.write('SOUR2:VOLT:LEV:IMM:AMPL 5VPP')
     instrument.write('SOUR2:VOLT:LEV:IMM:OFFS 2.5V')
     instrument.write('OUTP2 ON')
-    keithley_2450_A.write(':SYST:REM')
+
+    #keithley_2450_A.write('*RST')
+    #keithley_2450_B.write('*RST')
+    #keithley_2450_C.write('*RST')
+    time.sleep(2)
     keithley_2450_A.write(':SOUR:FUNC CURR')  # Set the source function to current
-    keithley_2450_A.write('SOUR:CURR:DEL:AUTO OFF')
-    keithley_2450_A.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
-    keithley_2450_A.write(':OUTP ON')  # Turn on the output
-    keithley_2450_B.write(':SYST:REM')
     keithley_2450_B.write(':SOUR:FUNC CURR')  # Set the source function to current
-    keithley_2450_B.write('SOUR:CURR:DEL:AUTO OFF')
-    keithley_2450_B.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
-    keithley_2450_B.write(':OUTP ON')  # Turn on the output
-    keithley_2450_C.write(':SYST:REM')
     keithley_2450_C.write(':SOUR:FUNC CURR')  # Set the source function to current
-    keithley_2450_C.write('SOUR:CURR:DEL:AUTO OFF')
+    time.sleep(2)
+    #keithley_2450_A.write('SOUR:CURR:DEL:AUTO OFF')
+    #keithley_2450_B.write('SOUR:CURR:DEL:AUTO OFF')
+    #keithley_2450_C.write('SOUR:CURR:DEL:AUTO OFF')
+    keithley_2450_A.write('SOURce:CURRent:READ:BACK ON')
+    keithley_2450_B.write('SOURce:CURRent:READ:BACK ON')
+    keithley_2450_C.write('SOURce:CURRent:READ:BACK ON')
+    time.sleep(2)
+    #keithley_2450_A.write('SOURce:CURRent:VLIM 21')
+    #keithley_2450_B.write('SOURce:CURRent:VLIM 21')
+    #keithley_2450_C.write('SOURce:CURRent:VLIM 21')
+    time.sleep(2)
+    keithley_2450_A.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
+    keithley_2450_B.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
     keithley_2450_C.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
+    time.sleep(5)
+    keithley_2450_A.write(':OUTP ON')  # Turn on the output
+    keithley_2450_B.write(':OUTP ON')  # Turn on the output
     keithley_2450_C.write(':OUTP ON')  # Turn on the output
+    time.sleep(5)
+
     #keithley_220.write('D0X') #Display current source
     #keithley_220.write('F1X') #Operate (set to programmed value)
     #keithley_220.write('R0X') #range auto
@@ -193,33 +207,58 @@ def afg_command(counts): #for CH1 and CH2
     if counts > 30000:
         instrument.write('SOUR1:FREQ '+str(30000)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
         instrument.write('SOUR2:FREQ '+str(30000)+'Hz')
-    instrument.write('SOUR1:FREQ '+str(counts)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-    instrument.write('SOUR2:FREQ '+str(counts)+'Hz')
-    instrument.write('SOUR1:PULS:WIDTH 200ns')
-    instrument.write('SOUR2:PULS:WIDTH 200ns')
-    instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
-    instrument.write('SOUR2:PULS:WIDTH 200ns')
+    else:
+        instrument.write('SOUR1:FREQ '+str(counts)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
+        instrument.write('SOUR2:FREQ '+str(counts)+'Hz')
+        instrument.write('SOUR1:PULS:WIDTH 200ns')
+        instrument.write('SOUR2:PULS:WIDTH 200ns')
+        instrument.write('SOUR1:PULS:WIDTH 200ns') #para simular fission chamber
+        instrument.write('SOUR2:PULS:WIDTH 200ns')
+
+keithleys_cycle_times = []
+
+last_update_time = 0
 
 def keithley_command(current):
-    if current > 10**-4:
-        current = 10**-4
-    keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
-    keithley_2450_A.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-    keithley_2450_A.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
-    keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
-    keithley_2450_B.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-    keithley_2450_B.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
-    keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value
-    keithley_2450_C.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
-    keithley_2450_C.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+    global last_update_time
+    if current <=10e-12:
+        if time.time() - last_update_time > 0.5:
+            keithley_2450_A.write(f':SOUR:CURR 10e-12')  #set the source current to desired value
+            keithley_2450_B.write(f':SOUR:CURR 10e-12')  #set the source current to desired value
+            keithley_2450_C.write(f':SOUR:CURR 10e-12')  #set the source current to desired value 
+            last_update_time = time.time()
+    elif current <= 1e-6:
+        if time.time() - last_update_time > 0.5: #only send signals every 0.5s to keithley in this range. this is due to keithley limitations.
+            keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
+            keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
+            keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value 
+            last_update_time = time.time()
+        #keithley_2450_A.query('*OPC?')
+        #keithley_2450_B.query('*OPC?')
+        #keithley_2450_C.query('*OPC?')
+        #print('time after query: ', time.time()-w)
+    elif 1e-6 < current <= 125e-6:
+        print('elif 1e-6 < current <= 135e-6 condition')
+        keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
+        keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
+        keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value
+    else:
+        keithley_2450_A.write(':SOUR:CURR 125e-6')  #set the source current to 135uA so that it doesnt surpass log lin specs
+        keithley_2450_B.write(':SOUR:CURR 125e-6')  
+        keithley_2450_C.write(':SOUR:CURR 125e-6')  
+
+    #keithley_2450_A.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
+    #keithley_2450_B.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
+    #keithley_2450_C.write('DISPlay:SCReen SWIPE_USER') #activate display text in the instrument
+    #keithley_2450_A.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+    #keithley_2450_B.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+    #keithley_2450_C.write(f'DISPlay:USER1:TEXT "CURR: {current:.5e} A"') #show the current being sourced in text format. this was done due to display problems
+    #keithleys_cycle_times.append(time.time()-w)
     #keithley_220.write(f'I{current:.3E}X') #set the source current to desired value
     #keithley_236.write(f'B{current:.3E},0,0X')
     #time.sleep(0.1)
 
-last_update_time = 0
-
 def AFG_signals(p, limit, initial_values, result_queue):#, source): #used in supercritical state only
-    global last_update_time
     t1 = time.time()
     h = 0.0005
     i = 0
@@ -228,47 +267,46 @@ def AFG_signals(p, limit, initial_values, result_queue):#, source): #used in sup
         initial_values = taylor_polinomial(initial_values, h, p)#, source) #coefficients_solver resolver o sistema de ODE's
         #print(initial_values[0], p)
         i += 1
-        current = 100*10**-12/(5*10**3)*initial_values[0] #current-counts proportionality, 5kcps<->100pA
-
-    if initial_values[0] < 3*10**4: #rods inhibit safety action of SourceRange starts at 50kcps, stop sending signals at 30kcps
-        afg_command(initial_values[0]) #writes in the afg the value of the counts given by the coefficients_solver
-        if time.time() - last_update_time >= 1:
-            keithley_command(current)
-            last_update_time = time.time()  # Update the last call time
-        '''if time.time()-t1 > 0.5:
-            print('LENTO', time.time()-t1)
-            keithley_220.clear()'''
-
-    elif initial_values[0] >= 3*10**4 and current < 100e-6: 
-        afg_command(30000) # at 30kcps keeps sending 30kHz so the rods inhibit of the source range are not activated
-        if time.time() - last_update_time >= 1:
-            keithley_command(current)
-            last_update_time = time.time()  # Update the last call time
-        '''if time.time()-t1 > 0.5:
-            print('LENTO', time.time()-t1)
-            keithley_220.clear()'''
-
-    else:
-        afg_command(30000)
-        if time.time() - last_update_time >= 1:
-            keithley_command(100e-6)
-            last_update_time = time.time()  # Update the last call time
-        '''if time.time()-t1 > 0.5:
-            print('LENTO', time.time()-t1)
-            keithley_220.clear()'''
-
-    while abs(time.time() - t1) < limit:
+    current = float('{:.2e}'.format(100*10**-12/(5*10**3)*initial_values[0]))  #current-counts proportionality, 5kcps<->100pA. exponential format with three digits
+    afg_command(initial_values[0]) #writes in the afg the value of the counts given by the coefficients_solver
+    keithley_command(current)
+    
+    while abs(time.time() - t1) < limit: #this condition ensures that this function takes "limit" seconds
         continue
     result_queue.put(initial_values) #multithreading
+
+    """if initial_values[0] < 3*10**4 and current < 135e-6: #rods inhibit safety action of SourceRange starts at 50kcps, stop sending signals at 30kcps
+        afg_command(initial_values[0]) #writes in the afg the value of the counts given by the coefficients_solver
+        keithley_command(current)
+    elif initial_values[0] >= 3*10**4 and current < 135e-6: 
+        afg_command(30000) # at 30kcps keeps sending 30kHz so the rods inhibit of the source range are not activated
+        keithley_command(current)
+    else:
+        afg_command(30000)
+        keithley_command(135e-6)"""
+
+    
+
+"""def keithley_signals(initial_values):
+    current = 100*10**-12/(5*10**3)*initial_values[0] #current-counts proportionality, 5kcps<->100pA
+
+    if initial_values[0] < 3*10**4: #rods inhibit safety action of SourceRange starts at 50kcps, stop sending signals at 30kcps
+        keithley_command(current)
+    elif initial_values[0] >= 3*10**4 and current < 135e-6: 
+        keithley_command(current)
+    else:
+        keithley_command(135e-6)"""
 
 ##########################################################################################################################################
 # MULTITHREADING
 
 
 def off(): #shuts outputs when the counts are out of range of operation
-    instrument.write('OUTP1 OFF')
-    instrument.write('OUTP2 OFF')
-    #keithley.write(':OUTP OFF')
+    #instrument.write('OUTP1 OFF')
+    #instrument.write('OUTP2 OFF')
+    #keithley_2450_A.write(':OUTP OFF')
+    #keithley_2450_B.write(':OUTP OFF')
+    #keithley_2450_C.write(':OUTP OFF')
     #keithley_220.write('????')
     #keithley_236.write('????')
     print('WARNING: Counts/Power/time limit reached.')
@@ -378,7 +416,7 @@ def threadings1(p, limit, initial_values):# source, command): #when in supercrit
         positions1 = [[2321, 2331], [3129, 3139], [3937, 3947], [4745, 4755], [5553, 5563], [6361, 6371]]
         positions2 = [[2339, 2346], [3145, 3152], [3951, 3959], [4758, 4766]]
 
-        k = 1/(1-p)
+        #k = 1/(1-p)
 
         result_queue = queue.Queue()
         result_queue1= queue.Queue()
@@ -388,6 +426,7 @@ def threadings1(p, limit, initial_values):# source, command): #when in supercrit
         th2 = threading.Thread(target = values, args=('http://10.10.15.23/cgi-bin/ope/allch.cgi', positions2, result_queue))
         th3 = threading.Thread(target = AFG_signals, args=(p, limit, initial_values, result_queue1))#, source))
         th4 = threading.Thread(target = values, args=('http://10.10.15.22/cgi-bin/ope/allch.cgi', positions2, result_queue))
+        #th5 = threading.Thread(target = keithley_signals, args=(initial_values))#, source))
         #th5 = threading.Thread(target = send_k_value, args=(remote_host, remote_port, username, password, k))
         #th6 = threading.Thread(target = get_raspberry_output, args=(remote_host, remote_port, username, password, command, result_queue2))
 
@@ -499,15 +538,23 @@ def data(time, counts, current, k, period, salmao, truta): #save data to CSV fil
 ########################################################################################################################################
 #MAIN FUNCTION
 
-t_initial = time.time()
+t_initial = time.time() 
 
 t_ciclo = [0]
 cycles = [0]
 times = []
-n = i = k_eff = period = salmao = truta = []
+n = []
+t_ciclo_sup = []
+truta = []
+cont_list = []
+times_raspberry = []
 ld_list = []
 
-def simulation(source, criticality, stoptime):
+def root_mean_squared(x): #gives RMS of a list
+    assert type(x) == list
+    return (sum(list(map(lambda y: y**2, x)))/len(x))**.5
+
+def simulation(source, criticality, stoptime, limit):
     activate_instruments()
     cont = True
     counts = 11 #counts associated to all bars at 0%
@@ -524,17 +571,17 @@ def simulation(source, criticality, stoptime):
 
     result_queue = queue.Queue()
     threading.Thread(target=get_raspberry_output_thread, args=(remote_host, remote_port, username, password, result_queue), daemon=True).start() # Start the thread that will fetch Raspberry Pi output asynchronously
-    ld_queue = queue.Queue()
+    #ld_queue = queue.Queue()
     time.sleep(1) #important so that the queue already has a value when the loop begins
+    v_values = [[2.5]*5, [2.5]*5, [2.5]*5, [2.5]*5, [2.5]*5]
 
     while 10 < initial_values[0] < 10**15 and time.time()-t4 < stoptime:
-
+        k_list = [k_value]*5 #to store the values of consecutive k's, in order to do the average and reduce noise influence
+        k_value = round(root_mean_squared(k_list), 5)
         b = time.time()
         c = time.time()
         d = time.time()
         e = time.time()
-
-        v_values = [] #list for the voltage comparasion to see if the bars have moved
 
         while k_value < 1 and cont == True:
 
@@ -545,46 +592,45 @@ def simulation(source, criticality, stoptime):
             z = threadings()
             carapau = z[0] #voltage readings from CARAPAU
             del carapau[-1] #deleting last value from CARAPAU because it's not used 
+            del v_values[0]
+            v_values.append(carapau)
 
-            if len(v_values) == 0:
-                v_values.extend([carapau]*2) #creates list with two lists. needed for the first iteration
-            else:
-                del v_values[0] #used in the following iterations
-                v_values.append(carapau) 
+            diffs = [round(v_values[0][i] - v_values[4][i], 5) for i in range(5)]
 
-            equilibrium = True
-            for i in range(len(v_values)): #checks if there's a difference bigger than 0.006 between each voltage reading.
-                if abs(v_values[0][i]-v_values[1][i])>0.006: #0.006 is the difference between the max value and minimal value of the carapau readings with the rods not moving
-                    equilibrium = False
-                    break
-
-            if equilibrium == True:
-                threading.Thread(target=calculate_ld, args=(ld_queue, c), daemon=True).start()
-            else:
+            if diffs[0]>5e-3 or diffs[1]>5.1e-3 or diffs[2]>5.1e-3 or diffs[3]>5.1e-3 or diffs[4]>5.1e-3:
+                #print('bars moving')
+                #print(max(diffs))
                 c = time.time()
-                threading.Thread(target=calculate_ld, args=(ld_queue, c), daemon=True).start()
-            if not ld_queue.empty(): #most recent ld value from queue
-                ld = ld_queue.get()
+                ld = ld_function(time.time()-c)
                 ld_list.append(ld)
+            else:
+                print('bars not moving')
+                print(max(diffs))
+                ld = ld_function(time.time()-c)
+                ld_list.append(ld)   
 
             new_counts = continuation(initial_values[0], k_value, source, time.time()-b, ld)
 
             n.append(new_counts)
-            times.append(time.time()-d)
+            times.append(time.time()-t4)
 
             current = 100*10**-12 / (5*10**3) * new_counts #current-counts proportionality, 5kcps<->100pA
             afg_command(new_counts) #sending commands
             keithley_command(current)
+            truta.append(z[2][1]) #appending values of voltage
 
+            #print("time b: ", time.time()-b)
             b = time.time() # give new value to b
 
             if time.time()-e > 0.5: #send k values to status monitor every 0.5s
                 send_k_value(remote_host, remote_port, username, password, k_value)
                 e=time.time()
 
+            rasp_time = time.time()
             if not result_queue.empty(): 
                 raspberry_output = result_queue.get() #checks raspberry 24 bits. has raspberry output every 3-4 cycles 
-            
+            times_raspberry.append(time.time()-rasp_time)
+
             initial_values=[new_counts,
                             (beta[0]*new_counts)/(Lambda[0]*l),
                             (beta[1]*new_counts)/(Lambda[1]*l),
@@ -593,13 +639,18 @@ def simulation(source, criticality, stoptime):
                             (beta[4]*new_counts)/(Lambda[4]*l),
                             (beta[5]*new_counts)/(Lambda[5]*l)]
             
-            print(f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}, Raspberry output: {raspberry_output}')
-            k_value = k(carapau, criticality)
+            #print(f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}, Raspberry output: {raspberry_output}')
+            #k_value = k(carapau, criticality)
+            new_k = k(carapau, criticality) #new k calculated with the function k
+            del k_list[0]
+            k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
+            k_value = round(root_mean_squared(k_list), 5)
             t_ciclo.append(time.time()-t_init_cycle)
             cycles.append(cycles[-1]+1)
-        
+            for i in range(len(carapau)): #this condition is necessary because the k() function multiplies by 20 the values of carapau. in order to store them correctly this multiplication needs to be canceled
+                carapau[i] = carapau[i]/20
             
-        """counts = initial_values[0]
+        counts = initial_values[0]
         p = [((k_value - 1) / k_value)] * 10 #list of ractivities to average (to decrease noise)
         initial_values = [counts,
                         (beta[0]*counts)/(Lambda[0]*l),
@@ -609,57 +660,80 @@ def simulation(source, criticality, stoptime):
                         (beta[4]*counts)/(Lambda[4]*l),
                         (beta[5]*counts)/(Lambda[5]*l)]
         
-        previous_values = [counts]*100
+        previous_values = [counts]*100 #will be used to calculate the period
         cont = False
-        times = [0.09] * len(previous_values) #where does the 0.09 comes from?
+        #cont_list.append(cont)
+        #times = [0.09] * len(previous_values) #where does the 0.09 comes from?
+        #t6 = time.time()
+
+        e = time.time()
 
         while cont == False and initial_values[0] < 10**15: #Second cycle supercritical state.
+
+            if time.time()-t4>stoptime:
+                break
+
             t5 = time.time()
-            z = threadings1(sum(p)/len(p), 0.3, initial_values) #[carapau, salmao, truta, ODE solution vector]
-            time.sleep(0.01)
+            z = threadings1(sum(p)/len(p), limit, initial_values) #[carapau, salmao, truta, ODE solution vector]
+            #time.sleep(0.01)
             
-            p1 = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #usar k() aqui
+            p1 = (cs_1(z[0][0]*20) + cs_2(z[0][1]*20) + cs_3(z[0][2]*20) + cs_4(z[0][3]*20) + cs_r(z[0][4]*20) - criticality) * 10**-5 #usar k() aqui?
             del p[0]
             p = p + [p1]
 
-            salmao = z[1]
-            truta = z[2]
+            rasp_time = time.time()
+            if not result_queue.empty(): 
+                raspberry_output = result_queue.get() #checks raspberry 24 bits. has raspberry output every 3-4 cycles 
+            times_raspberry.append(rasp_time)
 
-            initial_values1 = z[-1] # [O.D.E solution vector]   
+            #salmao = z[1]
+            truta.append(z[2][1])
+
+            initial_values1 = z[-1] # [O.D.E solution vector]
+            n.append(initial_values1[0])       
+            times.append(time.time() - t4)
             del previous_values[0]
             previous_values = previous_values+[initial_values1[0]]
-
-            p_value = round(sum(p)/len(p) * 10**5, 2) #reactivity given in pcm
-            period = tau(previous_values, sum(times), 1/(1-p_value)) #reactor period
-            p_inhour = round(Inhour(period, 1/(1-p_value)), 5) * 10**5 #get p from inhour equation. if this p is similiar to the given by the rods, the period is being well calculated
-            current = 100*10**-12 / (5*10**3) * initial_values1[0]
-            if current > 100e-6:
-                current = 100e-6
-            power = round(truta[2] * 12.5, 1) #linear power
-
-            if abs(previous_values[-1] - previous_values[0]) < 0.1:
-                print([f'p (pcms): {p_value}, Counts: {initial_values1[0]:.3e}, Period: inf, Cont: {cont}'])
-            else:
-                print([f'p (pcms): {p_value}, p(inhour): {p_inhour}, Counts: {initial_values1[0]:.3e}, Period: {period:.3e}, Current: {current:.3e}, Cont: {cont}, Power: {power}%']) ### !!! OUTPUT IN CRITICAL STATE !!!
+            current = float('{:.2e}'.format(100*10**-12/(5*10**3)*initial_values[0])) #current-counts proportionality, 5kcps<->100pA
+            #display values
+            p_value = round(sum(p)/len(p) * 10**5) #reactivity given in pcm
+            #period = tau(previous_values, sum(times), 1/(1-p_value)) #reactor period
+            #p_inhour = round(Inhour(period, 1/(1-p_value)), 5) * 10**5 #get p from inhour equation. if this p is similiar to the given by the rods, the period is being well calculated
+            #current = 100*10**-12 / (5*10**3) * initial_values1[0]
+            #if current > 100e-6:
+            #    current = 100e-6
+            #power = round(truta[2] * 12.5, 1) #linear power
+            #if abs(previous_values[-1] - previous_values[0]) < 0.1:
+            #    print([f'p (pcms): {p_value}, Counts: {initial_values1[0]:.3e}, Period: inf, Cont: {cont}'])
+            #else:
+            #    print([f'p (pcms): {p_value}, p(inhour): {p_inhour}, Counts: {initial_values1[0]:.3e}, Period: {period:.3e}, Current: {current:.3e}, Cont: {cont}, Power: {power}%']) ### !!! OUTPUT IN CRITICAL STATE !!!
+            print(f'p: {p_value}, I:{current}, RaspPi Outpur: {raspberry_output}')
             initial_values = initial_values1
             k_value = round(-1/(p1-1), 5)
 
-            data(initial_values[0], current, t5-t_initial, k_value, period, salmao, truta)
+            if time.time()-e > limit: #send k values to status monitor every 0.5s
+                send_k_value(remote_host, remote_port, username, password, k_value)
+                e=time.time()
 
-            if source / (1-k_value) > initial_values[0] and k_value <= 0.99999: #making sure that counts do not go below theoretical level of 1/1-k when in subcritical state
-                cont = True  #sends back to startup channel
-            else:
-                cont = False
+            if k_value != 1:
+                if source/(1-k_value) > initial_values1[0] and k_value <= 0.99999:#source / (1-k_value) > initial_values[0] and k_value <= 0.99999: #making sure that counts do not go below theoretical level of 1/1-k when in subcritical state
+                    cont = True  #sends back to startup channel
+                    cont_list.append(cont)
+                else:
+                    cont = False
+                    cont_list.append(cont) 
+            #del times[0]
             
-            del times[0]
-            
-            h = 0.001 #Taylor method being used here
+            h = 0.0001 #Taylor method being used here to compensate the time spent in threadings. predict how the initial_values list has evolved during the time spent at threadings.
             i = 0 
-            while h*i < time.time()-t5-0.1:
+            while h*i < time.time()-t5-limit:
                 initial_values = taylor_polinomial(initial_values, h, p[-1])
                 i += 1
 
-            times = times + [time.time() - t5]
+            t_ciclo.append(time.time()-t5)
+            t_ciclo_sup.append(time.time()-t5)
+            cycles.append(cycles[-1]+1)
+
             
     off() #shuts off the instruments after the loop ends"""
     
@@ -871,14 +945,46 @@ def simulation(source, criticality, int_time, stop_time): ### This is a simulati
     off() #shuts off the instruments after the loop ends
 """
 
-simulation(source=2, criticality=9093, stoptime=300)#, int_time=1, stop_time=10000) #why source=2?
+simulation(source=2, criticality=9093, stoptime=660 , limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
+
+if False in cont_list:
+    print("media ciclo sup", sum(t_ciclo_sup)/len(t_ciclo_sup))
+    print("max ciclo sup", max(t_ciclo_sup[2:]))
 
 print(sum(t_ciclo)/len(t_ciclo))
-print(max(t_ciclo[2:]))
 
-plt.scatter(cycles, t_ciclo, s=2)
+plt.scatter(cycles[2:], t_ciclo[2:], s=1)
 plt.show()
+
 plt.plot(times, n)
+plt.yscale('log')
 plt.show()
+
+current_sent = []
+current_read = []
+
+for count in n:
+    i = 100e-12 / 5000 * count
+    current_sent.append(i)
+
+for v in truta:
+    i = 10**((v-15)/1.25)
+    current_read.append(i)
+
+plt.plot(current_sent, current_read)
+plt.yscale('log')
+plt.xscale('log')
+plt.show()
+
 plt.plot(times, ld_list)
+plt.xticks([0,180,210,270,300,360,390,450,480,540,570,630])
 plt.show()
+
+
+#print(len(keithleys_cycle_times), len(times))
+#print(sum(keithleys_cycle_times)/len(keithleys_cycle_times))
+#print(max(keithleys_cycle_times[2:]))
+#plt.scatter(cycles[2:], keithleys_cycle_times[2:])
+#plt.show()
+#plt.plot(times, ld_list)
+#plt.show()
