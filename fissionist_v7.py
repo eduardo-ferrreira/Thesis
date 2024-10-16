@@ -52,8 +52,9 @@ l_rod = 0.7 #m
 A_rod = np.pi*r_rod**2 #m^2
 V_rod = A_rod*l_rod #m^3
 c_d = 0.82 #coefficient drag of a long cylinder
-y_0 = 1.05 #height position of the rods
-v_y0 = 0 #initial velocity of the rods before scram
+y0_rod = 1.05 #max height position of the center of mass of the rods
+vy0_rod = 0 #initial velocity of the rods before scram
+#rod_dynamics=[[0, y0_rod, vy0_rod]]* #initial time, position and velocity of the rods before dropping
 
 #Cubic splines to know the p corresponding to the rods position (values from the professor's documents)
 x = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.0, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 13.0, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 14.0, 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 15.0, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 16.0, 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.9, 17.0, 17.1, 17.2, 17.3, 17.4, 17.5, 17.6, 17.7, 17.8, 17.9, 18.0, 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.8, 18.9, 19.0, 19.1, 19.2, 19.3, 19.4, 19.5, 19.6, 19.7, 19.8, 19.9, 20.0, 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7, 20.8, 20.9, 21.0, 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 21.7, 21.8, 21.9, 22.0, 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 22.7, 22.8, 22.9, 23.0, 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 23.9, 24.0, 24.1, 24.2, 24.3, 24.4, 24.5, 24.6, 24.7, 24.8, 24.9, 25.0, 25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.7, 25.8, 25.9, 26.0, 26.1, 26.2, 26.3, 26.4, 26.5, 26.6, 26.7, 26.8, 26.9, 27.0, 27.1, 27.2, 27.3, 27.4, 27.5, 27.6, 27.7, 27.8, 27.9, 28.0, 28.1, 28.2, 28.3, 28.4, 28.5, 28.6, 28.7, 28.8, 28.9, 29.0, 29.1, 29.2, 29.3, 29.4, 29.5, 29.6, 29.7, 29.8, 29.9, 30.0, 30.1, 30.2, 30.3, 30.4, 30.5, 30.6, 30.7, 30.8, 30.9, 31.0, 31.1, 31.2, 31.3, 31.4, 31.5, 31.6, 31.7, 31.8, 31.9, 32.0, 32.1, 32.2, 32.3, 32.4, 32.5, 32.6, 32.7, 32.8, 32.9, 33.0, 33.1, 33.2, 33.3, 33.4, 33.5, 33.6, 33.7, 33.8, 33.9, 34.0, 34.1, 34.2, 34.3, 34.4, 34.5, 34.6, 34.7, 34.8, 34.9, 35.0, 35.1, 35.2, 35.3, 35.4, 35.5, 35.6, 35.7, 35.8, 35.9, 36.0, 36.1, 36.2, 36.3, 36.4, 36.5, 36.6, 36.7, 36.8, 36.9, 37.0, 37.1, 37.2, 37.3, 37.4, 37.5, 37.6, 37.7, 37.8, 37.9, 38.0, 38.1, 38.2, 38.3, 38.4, 38.5, 38.6, 38.7, 38.8, 38.9, 39.0, 39.1, 39.2, 39.3, 39.4, 39.5, 39.6, 39.7, 39.8, 39.9, 40.0, 40.1, 40.2, 40.3, 40.4, 40.5, 40.6, 40.7, 40.8, 40.9, 41.0, 41.1, 41.2, 41.3, 41.4, 41.5, 41.6, 41.7, 41.8, 41.9, 42.0, 42.1, 42.2, 42.3, 42.4, 42.5, 42.6, 42.7, 42.8, 42.9, 43.0, 43.1, 43.2, 43.3, 43.4, 43.5, 43.6, 43.7, 43.8, 43.9, 44.0, 44.1, 44.2, 44.3, 44.4, 44.5, 44.6, 44.7, 44.8, 44.9, 45.0, 45.1, 45.2, 45.3, 45.4, 45.5, 45.6, 45.7, 45.8, 45.9, 46.0, 46.1, 46.2, 46.3, 46.4, 46.5, 46.6, 46.7, 46.8, 46.9, 47.0, 47.1, 47.2, 47.3, 47.4, 47.5, 47.6, 47.7, 47.8, 47.9, 48.0, 48.1, 48.2, 48.3, 48.4, 48.5, 48.6, 48.7, 48.8, 48.9, 49.0, 49.1, 49.2, 49.3, 49.4, 49.5, 49.6, 49.7, 49.8, 49.9, 50.0, 50.1, 50.2, 50.3, 50.4, 50.5, 50.6, 50.7, 50.8, 50.9, 51.0, 51.1, 51.2, 51.3, 51.4, 51.5, 51.6, 51.7, 51.8, 51.9, 52.0, 52.1, 52.2, 52.3, 52.4, 52.5, 52.6, 52.7, 52.8, 52.9, 53.0, 53.1, 53.2, 53.3, 53.4, 53.5, 53.6, 53.7, 53.8, 53.9, 54.0, 54.1, 54.2, 54.3, 54.4, 54.5, 54.6, 54.7, 54.8, 54.9, 55.0, 55.1, 55.2, 55.3, 55.4, 55.5, 55.6, 55.7, 55.8, 55.9, 56.0, 56.1, 56.2, 56.3, 56.4, 56.5, 56.6, 56.7, 56.8, 56.9, 57.0, 57.1, 57.2, 57.3, 57.4, 57.5, 57.6, 57.7, 57.8, 57.9, 58.0, 58.1, 58.2, 58.3, 58.4, 58.5, 58.6, 58.7, 58.8, 58.9, 59.0, 59.1, 59.2, 59.3, 59.4, 59.5, 59.6, 59.7, 59.8, 59.9, 60.0, 60.1, 60.2, 60.3, 60.4, 60.5, 60.6, 60.7, 60.8, 60.9, 61.0, 61.1, 61.2, 61.3, 61.4, 61.5, 61.6, 61.7, 61.8, 61.9, 62.0, 62.1, 62.2, 62.3, 62.4, 62.5, 62.6, 62.7, 62.8, 62.9, 63.0, 63.1, 63.2, 63.3, 63.4, 63.5, 63.6, 63.7, 63.8, 63.9, 64.0, 64.1, 64.2, 64.3, 64.4, 64.5, 64.6, 64.7, 64.8, 64.9, 65.0, 65.1, 65.2, 65.3, 65.4, 65.5, 65.6, 65.7, 65.8, 65.9, 66.0, 66.1, 66.2, 66.3, 66.4, 66.5, 66.6, 66.7, 66.8, 66.9, 67.0, 67.1, 67.2, 67.3, 67.4, 67.5, 67.6, 67.7, 67.8, 67.9, 68.0, 68.1, 68.2, 68.3, 68.4, 68.5, 68.6, 68.7, 68.8, 68.9, 69.0, 69.1, 69.2, 69.3, 69.4, 69.5, 69.6, 69.7, 69.8, 69.9, 70.0, 70.1, 70.2, 70.3, 70.4, 70.5, 70.6, 70.7, 70.8, 70.9, 71.0, 71.1, 71.2, 71.3, 71.4, 71.5, 71.6, 71.7, 71.8, 71.9, 72.0, 72.1, 72.2, 72.3, 72.4, 72.5, 72.6, 72.7, 72.8, 72.9, 73.0, 73.1, 73.2, 73.3, 73.4, 73.5, 73.6, 73.7, 73.8, 73.9, 74.0, 74.1, 74.2, 74.3, 74.4, 74.5, 74.6, 74.7, 74.8, 74.9, 75.0, 75.1, 75.2, 75.3, 75.4, 75.5, 75.6, 75.7, 75.8, 75.9, 76.0, 76.1, 76.2, 76.3, 76.4, 76.5, 76.6, 76.7, 76.8, 76.9, 77.0, 77.1, 77.2, 77.3, 77.4, 77.5, 77.6, 77.7, 77.8, 77.9, 78.0, 78.1, 78.2, 78.3, 78.4, 78.5, 78.6, 78.7, 78.8, 78.9, 79.0, 79.1, 79.2, 79.3, 79.4, 79.5, 79.6, 79.7, 79.8, 79.9, 80.0, 80.1, 80.2, 80.3, 80.4, 80.5, 80.6, 80.7, 80.8, 80.9, 81.0, 81.1, 81.2, 81.3, 81.4, 81.5, 81.6, 81.7, 81.8, 81.9, 82.0, 82.1, 82.2, 82.3, 82.4, 82.5, 82.6, 82.7, 82.8, 82.9, 83.0, 83.1, 83.2, 83.3, 83.4, 83.5, 83.6, 83.7, 83.8, 83.9, 84.0, 84.1, 84.2, 84.3, 84.4, 84.5, 84.6, 84.7, 84.8, 84.9, 85.0, 85.1, 85.2, 85.3, 85.4, 85.5, 85.6, 85.7, 85.8, 85.9, 86.0, 86.1, 86.2, 86.3, 86.4, 86.5, 86.6, 86.7, 86.8, 86.9, 87.0, 87.1, 87.2, 87.3, 87.4, 87.5, 87.6, 87.7, 87.8, 87.9, 88.0, 88.1, 88.2, 88.3, 88.4, 88.5, 88.6, 88.7, 88.8, 88.9, 89.0, 89.1, 89.2, 89.3, 89.4, 89.5, 89.6, 89.7, 89.8, 89.9, 90.0, 90.1, 90.2, 90.3, 90.4, 90.5, 90.6, 90.7, 90.8, 90.9, 91.0, 91.1, 91.2, 91.3, 91.4, 91.5, 91.6, 91.7, 91.8, 91.9, 92.0, 92.1, 92.2, 92.3, 92.4, 92.5, 92.6, 92.7, 92.8, 92.9, 93.0, 93.1, 93.2, 93.3, 93.4, 93.5, 93.6, 93.7, 93.8, 93.9, 94.0, 94.1, 94.2, 94.3, 94.4, 94.5, 94.6, 94.7, 94.8, 94.9, 95.0, 95.1, 95.2, 95.3, 95.4, 95.5, 95.6, 95.7, 95.8, 95.9, 96.0, 96.1, 96.2, 96.3, 96.4, 96.5, 96.6, 96.7, 96.8, 96.9, 97.0, 97.1, 97.2, 97.3, 97.4, 97.5, 97.6, 97.7, 97.8, 97.9, 98.0, 98.1, 98.2, 98.3, 98.4, 98.5, 98.6, 98.7, 98.8, 98.9, 99.0, 99.1, 99.2, 99.3, 99.4, 99.5, 99.6, 99.7, 99.8, 99.9]
@@ -71,7 +72,7 @@ cs_r = CubicSpline(x,yr)
 df = pd.read_csv('rod_calibration.csv')
 mininimo, maximo = df['min'], df['max'] #min and max values of voltage in carapau for rods at 0% and 100%
 
-def dSdt(t, S):
+"""def dSdt(t, S):
     y, v_y = S
     dSdt = [v_y, 1/m_rod*(0.5*c_d*p_water*A_rod*v_y**2-(m_rod-p_water*V_rod)*g) ]
     return dSdt
@@ -82,7 +83,7 @@ sol = odeint(dSdt, y0=S_0, t=t_scram, tfirst=True)
 pct = sol.T[0]/y_0*100 #normalized list of positions of the rods dropping in a scram event (given in %)
 for i in range(len(pct)):
    if pct[i]<0:
-      pct[i] = 0 #to ensure that there are no negative percentages
+      pct[i] = 0 #to ensure that there are no negative percentages"""
 
 #Functions
 def function(url_string): #Removes the unwanted strings from the Yokogawa Values converting them into floats
@@ -110,7 +111,25 @@ def taylor_polinomial(initial_values, interval, rhon):#, source): # method to so
     dC6=(beta[5]*initial_values[0])/(L)-Lambda[5]*initial_values[6]
     return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6]
 
-def ld_function(t):#, k): #ld is not constant, it varies with the concentration of the 6 precursors
+def rod_drop(state_vector, scram_list):  #taylor method to simulate the rod drop
+    h = 0.001
+    y_values = state_vector[::2]  #y0_1, y0_2, y0_3, y0_4
+    vy_values = state_vector[1::2]  #vy0_1, vy0_2, vy0_3, vy0_4
+    updated_state = []
+    for i in range(4):
+        if scram_list[i]==True: 
+            dydt = vy_values[i]
+            dvydt = 1/m_rod*(0.5*c_d*p_water*A_rod*vy_values[i]**2-(m_rod-p_water*V_rod)*g) #rod falling in water differential equation
+            new_y = y_values[i]+ h*dydt
+            new_vy = vy_values[i] + h*dvydt
+            updated_state.append(new_y)
+            updated_state.append(new_vy)
+        else:
+            updated_state.append(y_values[i])
+            updated_state.append(vy_values[i])
+    return updated_state  #state vector with positions and velocities
+
+def ld_function(t, k): #ld is not constant, it varies with the concentration of the 6 precursors
     ld = l * (1-sum(beta))
     sum_delayed = 0
     for i in range(len(Lambda)):
@@ -120,7 +139,7 @@ def ld_function(t):#, k): #ld is not constant, it varies with the concentration 
     #print('ld: ', ld)
     return ld
 
-def k(v_values, criticality, rasp_output, t): 
+def k(v_values, criticality, rasp_output, scram, state_vector): 
     assert type(v_values) == list and len(v_values) == 5 # determines the value of k based on the rods positions
     #pct_values = [0]*len(v_values)
     #for i in range(len(v_values)):
@@ -128,9 +147,9 @@ def k(v_values, criticality, rasp_output, t):
         #pct_values[i] = v_values[i]*20 #voltages readings from 0-5V, multiply by 20 to give in % reading
     #p = (cs_1(carapau[0]) + cs_2(carapau[1]) + cs_3(carapau[2]) + cs_4(carapau[3]) + cs_r(carapau[4]) - criticality)*10**-5 #sum of all rods reactivity minus criticality (given in the paper) and then converted from pcm
     #print(pct_values)
-    p = safety_actions(rasp_output, criticality, v_values, t)
+    p, scram, state_vector = safety_actions(rasp_output, criticality, v_values, scram, state_vector)
     k = round(-1/(p-1), 5) #returning k
-    return k, p
+    return k, scram, state_vector
 
 def place(counts, k, source): 
     return math.log(1-counts*(1-k)/(source), k)#) / math.log(k) #operação inversa da soma geométrica para descobrir o N no expoente correspondente ao numero de contagens
@@ -167,51 +186,26 @@ def root_mean_squared(x): #gives RMS of a list
     assert type(x) == list
     return (sum(list(map(lambda y: y**2, x)))/len(x))**.5
 
-def safety_actions(rasp_out, criticality, v_values, t):
-    """time_diff = 1 #random value only to have the variable defined
-    for i in range(len(t_scram)):
-        diff=abs(t-t_scram[i])
-        if diff < time_diff:
-            time_diff = diff
-            index = i"""
+def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
+    scram_list = [False] * 4  #default no scram
+    rod_indices = {'20': [0, 1, 2, 3], '19': [1, 2, 3], '18': [0, 2, 3], '17': [0, 1, 3],  #dictionary with outputs of importances from raspberry associated
+                   '16': [0, 1, 2], '15': [2, 3], '14': [1, 3], '13': [0, 3], '12': [1, 2], #to the index of the rod that drops
+                   '11': [0, 2], '10': [0, 1], '9': [3], '8': [2], '7': [1], '6': [0]}
+    
+    if not scram:
+        state_vector = [v_values[i//2]/5*y0_rod if i%2 == 0 else 0 for i in range(8)] #creates a vector with positions y and velocity vy of each rod based on carapau readings
 
-    if rasp_out == '20': #all rods drop
-        #p = (cs_1(pct[index]) + cs_2(pct[index]) + cs_3(pct[index]) + cs_4(pct[index]) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-        p = (cs_r(v_values[4]*20) - criticality) * 10**-5
-    elif rasp_out=='19': #rods 2 3 4 drop
-        p = (cs_1(v_values[0]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='18': #rods 1 3 4 drop
-        p = (cs_2(v_values[1]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='17': #rods 1 2 4 drop
-        p = (cs_3(v_values[2]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='16': #rods 1 2 3 drop
-        p = (cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='15': #rods 3 4 drop
-        p = (cs_1(v_values[0]*20) + cs_2(v_values[1]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='14': #rods 2 4 drop
-        p = (cs_1(v_values[0]*20) + cs_3(v_values[2]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='13': #rods 1 4 drop
-        p = (cs_2(v_values[1]*20) + cs_3(v_values[2]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='12': #rods 2 3 drop
-        p = (cs_1(v_values[0]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='11': #rods 1 3 drop
-        p = (cs_2(v_values[1]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='10': #rods 1 2 drop
-        p = (cs_3(v_values[2]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='9': #rod 4 drop
-        p = (cs_1(v_values[0]*20) + cs_2(v_values[1]*20) + cs_3(v_values[2]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='8': #rod 3 drop
-        p = (cs_1(v_values[0]*20) + cs_2(v_values[1]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='7': #rod 2 drop
-        p = (cs_1(v_values[0]*20) + cs_3(v_values[2]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='6': #rod 1 drop
-        p = (cs_2(v_values[1]*20) + cs_3(v_values[2]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5 
-    elif rasp_out =='5': #reverse
-        p = (cs_1(v_values[0]*20) + cs_2(v_values[1]*20) + cs_3(v_values[2]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5
-        #adicionar função reverse ou leitura barras é suficiente?
-    else:
-        p = (cs_1(v_values[0]*20) + cs_2(v_values[1]*20) + cs_3(v_values[2]*20) + cs_4(v_values[3]*20) + cs_r(v_values[4]*20) - criticality) * 10**-5
-    return p   
+    if rasp_out in rod_indices:
+        for i in rod_indices[rasp_out]:
+            scram_list[i] = True #sets scram state of the rods that the raspberry signalized
+        state_vector = rod_drop(state_vector, scram_list) #creates new vector with new y and vy of the falling rods
+        scram = True #scram state is now true so the rods positions based on carapau readings will be ignored
+
+    pct = [state_vector[i*2] /y0_rod*100 if scram_list[i] else v_values[i]*20 for i in range(4)] #new withdrawn percentages if scram as occurred
+    p = (cs_1(pct[0]) + cs_2(pct[1]) + cs_3(pct[2]) + cs_4(pct[3]) + cs_r(v_values[4] * 20) - criticality) * 10**-5 #calculates new reactivity using new withdrawn percentages
+
+    p = max(p, -9093*10**-5) #limits reactivity to its minimum -9093pcm
+    return p, scram, state_vector
 
 ##########################################################################################################################################
 # INSTRUMENTS COMMANDS
@@ -242,9 +236,9 @@ def activate_instruments(): #using SCPI commands
     keithley_2450_B.write(':SOUR:FUNC CURR')  # Set the source function to current
     keithley_2450_C.write(':SOUR:FUNC CURR')  # Set the source function to current
     time.sleep(2)
-    #keithley_2450_A.write('SOUR:CURR:DEL:AUTO OFF')
-    #keithley_2450_B.write('SOUR:CURR:DEL:AUTO OFF')
-    #keithley_2450_C.write('SOUR:CURR:DEL:AUTO OFF')
+    keithley_2450_A.write('SOUR:CURR:DEL:AUTO OFF')
+    keithley_2450_B.write('SOUR:CURR:DEL:AUTO OFF')
+    keithley_2450_C.write('SOUR:CURR:DEL:AUTO OFF')
     keithley_2450_A.write('SOURce:CURRent:READ:BACK ON')
     keithley_2450_B.write('SOURce:CURRent:READ:BACK ON')
     keithley_2450_C.write('SOURce:CURRent:READ:BACK ON')
@@ -303,27 +297,22 @@ def keithley_command(current):
     global last_update_time
     current = float('{:.2e}'.format(current)) #exponential format with two decimal places
     if time.time() - last_update_time > 0.4:
-        if current <=100e-12:
+        if current <=5e-12:
             #
-            keithley_2450_A.write(f':SOUR:CURR 100e-12')  #set the source current to desired value
-            keithley_2450_B.write(f':SOUR:CURR 100e-12')  #set the source current to desired value
-            keithley_2450_C.write(f':SOUR:CURR 100e-12')  #set the source current to desired value 
+            keithley_2450_A.write(f':SOUR:CURR 5e-12')  #set the source current to desired value
+            keithley_2450_B.write(f':SOUR:CURR 5e-12')  #set the source current to desired value
+            keithley_2450_C.write(f':SOUR:CURR 5e-12')  #set the source current to desired value 
                 #last_update_time = time.time()
-        elif 100e-12 <= current <= 1e-6:
+        elif 5e-12 <= current <= 200e-6:
             #if time.time() - last_update_time > 0.4: #only send signals every 0.5s to keithley in this range. this is due to keithley limitations.
             keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value 
                 #last_update_time = time.time()
-        elif 1e-6 < current <= 125e-6:
-            #print('elif 1e-6 < current <= 135e-6 condition')
-            keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
-            keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
-            keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value
         else:
-            keithley_2450_A.write(':SOUR:CURR 125e-6')  #set the source current to 135uA so that it doesnt surpass log lin specs
-            keithley_2450_B.write(':SOUR:CURR 125e-6')  
-            keithley_2450_C.write(':SOUR:CURR 125e-6')  
+            keithley_2450_A.write(':SOUR:CURR 200-6')  #set the source current to 135uA so that it doesnt surpass log lin specs
+            keithley_2450_B.write(':SOUR:CURR 200-6')  
+            keithley_2450_C.write(':SOUR:CURR 200-6')  
         last_update_time = time.time()
     else:
         pass
@@ -516,7 +505,7 @@ def get_raspberry_output(remote_host, remote_port, username, password):#, result
 ###########################################################################################################################################
 #SAVING DATA 
 
-def data(time, counts, current, k, period, salmao, truta, ld, t_ciclo): #save data to CSV file to then open with a notebook
+def data(time, counts, current, k, period, salmao, truta, t_ciclo): #save data to CSV file to then open with a notebook
     
     month_year = datetime.datetime.now().strftime("%m-%Y")  #current month and year in format MM-YYYY
     month_path = os.path.join(os.getcwd(), month_year)
@@ -535,10 +524,8 @@ def data(time, counts, current, k, period, salmao, truta, ld, t_ciclo): #save da
     with open(filepath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['Time', 'Counts', 'Current', 'k', 'Period',
-                        'CH1_SALMAO', 'CH2_SALMAO', 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA', 'ld', 't cycle'])  # Write header
-        for i in range(len(time)):
-            writer.writerows(zip(time[i], counts[i], current[i], k[i], period[i], salmao[0][i], salmao[1][i], truta[0][i], truta[1][i], truta[2][i], ld[i], t_ciclo[i])) # Write rows of lists
-
+                        'CH1_SALMAO', 'CH2_SALMAO', 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA', 't cycle'])  # Write header
+        writer.writerows(zip(time, counts, current, k, period, salmao[0], salmao[1], truta[0], truta[1], truta[2], t_ciclo)) # Write rows of lists
 
 ########################################################################################################################################
 #MAIN FUNCTION
@@ -551,8 +538,8 @@ times = []
 n = []
 t_ciclo_sup = []
 times_ld = []
-salmao = []
-truta = []
+salmao = [[],[]]
+truta = [[],[],[]]
 cont_list = []
 times_raspberry = []
 ld_list = []
@@ -562,9 +549,12 @@ period = []
 
 def simulation(source, criticality, stoptime, limit):
     activate_instruments()
+    time.sleep(10)
     cont = True
     counts = 11 #counts associated to all bars at 0%
     k_value = 1 - source/counts #k asssociated at 11 counts
+    scram=False
+    state_vector = [0,0,0,0,0,0,0,0]  # State vector for the rods
     initial_values = [counts,
                     (beta[0]*counts)/(Lambda[0]*l),
                     (beta[1]*counts)/(Lambda[1]*l),
@@ -578,7 +568,7 @@ def simulation(source, criticality, stoptime, limit):
     result_queue = queue.Queue()
     threading.Thread(target=get_raspberry_output_thread, args=(remote_host, remote_port, username, password, result_queue), daemon=True).start() # Start the thread that will fetch Raspberry Pi output asynchronously
     time.sleep(1) #important so that the queue already has a value when the loop begins
-
+    scram = False
     while 10 < initial_values[0] < 10**15 and time.time()-t4 < stoptime:
         k_list = [k_value]*5 #to store the values of consecutive k's, in order to do the average and reduce noise influence
         k_value = round(root_mean_squared(k_list), 5)
@@ -601,21 +591,23 @@ def simulation(source, criticality, stoptime, limit):
                 raspberry_output = result_queue.get() #checks raspberry 24 bits. has raspberry output every 3-4 cycles 
             times_raspberry.append(time.time()-rasp_time) 
 
-            if int(raspberry_output) in [3,4,5]:
+            """if int(raspberry_output) in [3,4,5]:
                 c = time.time()
                 ld = ld_function(time.time()-c)
                 ld_list.append(ld)
             else:
                 ld = ld_function(time.time()-c)
-                ld_list.append(ld)
+                ld_list.append(ld)"""
             new_counts = continuation(initial_values[0], k_value, source, time.time()-b, ld)
 
             n.append(new_counts)
             times.append(time.time()-t4)
             times_ld.append(time.time()-t4)
-            salmao.append(z[1]) 
-            truta.append(z[2])
-
+            salmao[0].append(z[1][0]) #salmao ch1 readings
+            salmao[1].append(z[1][1]) 
+            truta[0].append(z[2][0]) #truta readings
+            truta[1].append(z[2][1])
+            truta[2].append(z[2][2])
             current = 100*10**-12 / (5*10**3) * new_counts #current-counts proportionality, 5kcps<->100pA
             afg_command(new_counts) #sending commands
             keithley_command(current)
@@ -634,10 +626,16 @@ def simulation(source, criticality, stoptime, limit):
                             (beta[4]*new_counts)/(Lambda[4]*l),
                             (beta[5]*new_counts)/(Lambda[5]*l)]
             
+            #y0_1, vy0_1 = carapau[0]/5 * y0_rod, 0
+            #y0_2, vy0_2 = carapau[1]/5 * y0_rod, 0
+            #y0_3, vy0_3 = carapau[2]/5 * y0_rod, 0
+            #y0_4, vy0_4 = carapau[3]/5 * y0_rod, 0
+            #state_vector = [y0_1, vy0_1, y0_2, vy0_2, y0_3, vy0_3, y0_4, vy0_4]  # State vector for the rods
+            
             print(f'k: {k_value}, Counts: {initial_values[0]:.3e}, Cont: {cont}, Current: {current:.3e}, Raspberry output: {raspberry_output}, Time passed: {(time.time()-t4)/60}')
             max_index = min(101, len(n))
             period.append(tau(n[-max_index:-1], times[-max_index:-1], k_value)) #use last 100 values to calculate period
-            new_k = k(v_values=carapau, criticality=criticality, rasp_output=raspberry_output, t=time.time()-b)[0] #new k calculated with the function k
+            new_k, scram, state_vector = k(v_values=carapau, criticality=criticality, rasp_output=raspberry_output, scram=scram, state_vector=state_vector) #new k calculated with the function k
             del k_list[0]
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
             k_value = round(root_mean_squared(k_list), 5)
@@ -654,10 +652,10 @@ def simulation(source, criticality, stoptime, limit):
                         (beta[3]*counts)/(Lambda[3]*l),
                         (beta[4]*counts)/(Lambda[4]*l),
                         (beta[5]*counts)/(Lambda[5]*l)]
-        
+                
         previous_values = [counts]*100 #will be used to calculate the period
         cont = False
-
+        scram=False
         e = time.time()
 
         while cont == False and initial_values[0] < 10**15: #Second cycle supercritical state.
@@ -675,10 +673,20 @@ def simulation(source, criticality, stoptime, limit):
             carapau=z[0]
             del carapau[-1]
             del p[0]
-            new_p = safety_actions(raspberry_output, criticality, carapau, time.time()-t5)  
+
+            #y0_1, vy0_1 = carapau[0]/5 * y0_rod, 0
+            #y0_2, vy0_2 = carapau[1]/5 * y0_rod, 0
+            #y0_3, vy0_3 = carapau[2]/5 * y0_rod, 0
+            #y0_4, vy0_4 = carapau[3]/5 * y0_rod, 0
+            #state_vector = [y0_1, vy0_1, y0_2, vy0_2, y0_3, vy0_3, y0_4, vy0_4]  # State vector for the rods
+
+            new_p, scram, state_vector = safety_actions(raspberry_output, criticality, carapau, scram, state_vector)  
             p.append(new_p)          
-            salmao.append(z[1])
-            truta.append(z[2])
+            salmao[0].append(z[1][0]) #salmao ch1 readings
+            salmao[1].append(z[1][1]) 
+            truta[0].append(z[2][0]) #truta readings
+            truta[1].append(z[2][1])
+            truta[2].append(z[2][2])
 
             initial_values1 = z[-1] # [O.D.E solution vector]
             n.append(initial_values1[0])       
@@ -940,8 +948,10 @@ def simulation(source, criticality, int_time, stop_time): ### This is a simulati
     off() #shuts off the instruments after the loop ends
 """
 
-simulation(source=2, criticality=9093, stoptime=30 , limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
+simulation(source=2, criticality=9093, stoptime=2700 , limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
 
 current = 100*10**-12/5000*np.array(n)
-data(times, n, current, k_value_list, period, salmao, truta, ld_list, t_ciclo) #save data into csv files
-print(len(times), len(n), len(current), len(k_value_list), len(period), len(salmao), len(truta), len(ld_list), len(t_ciclo))
+data(times, n, current, k_value_list, period, salmao, truta, t_ciclo) #save data into csv files
+
+
+
