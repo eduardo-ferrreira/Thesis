@@ -112,7 +112,7 @@ def taylor_polinomial(initial_values, interval, rhon):#, source): # method to so
     return [initial_values[0]+interval*dN,initial_values[1]+interval*dC1,initial_values[2]+interval*dC2,initial_values[3]+interval*dC3,initial_values[4]+interval*dC4,initial_values[5]+interval*dC5,initial_values[6]+interval*dC6]
 
 def rod_drop(state_vector, scram_list):  #taylor method to simulate the rod drop
-    h = 0.001
+    h = 0.08
     y_values = state_vector[::2]  #y0_1, y0_2, y0_3, y0_4
     vy_values = state_vector[1::2]  #vy0_1, vy0_2, vy0_3, vy0_4
     updated_state = []
@@ -122,6 +122,8 @@ def rod_drop(state_vector, scram_list):  #taylor method to simulate the rod drop
             dvydt = 1/m_rod*(0.5*c_d*p_water*A_rod*vy_values[i]**2-(m_rod-p_water*V_rod)*g) #rod falling in water differential equation
             new_y = y_values[i]+ h*dydt
             new_vy = vy_values[i] + h*dvydt
+            if new_y <= 0:
+                new_y = 0
             updated_state.append(new_y)
             updated_state.append(new_vy)
         else:
@@ -186,6 +188,7 @@ def root_mean_squared(x): #gives RMS of a list
     assert type(x) == list
     return (sum(list(map(lambda y: y**2, x)))/len(x))**.5
 
+position_list=[]
 def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
     scram_list = [False] * 4  #default no scram
     rod_indices = {'20': [0, 1, 2, 3], '19': [1, 2, 3], '18': [0, 2, 3], '17': [0, 1, 3],  #dictionary with outputs of importances from raspberry associated
@@ -200,8 +203,12 @@ def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
             scram_list[i] = True #sets scram state of the rods that the raspberry signalized
         state_vector = rod_drop(state_vector, scram_list) #creates new vector with new y and vy of the falling rods
         scram = True #scram state is now true so the rods positions based on carapau readings will be ignored
-
-    pct = [state_vector[i*2] /y0_rod*100 if scram_list[i] else v_values[i]*20 for i in range(4)] #new withdrawn percentages if scram as occurred
+    position_list.append(state_vector[0])
+    print(state_vector[0])
+    pct = [state_vector[i*2]/y0_rod*100 if scram_list[i] else v_values[i]*20 for i in range(4)] #new withdrawn percentages if scram as occurred
+    for i in range(len(pct)):
+        if pct[i]<=0:
+            pct[i]=0 #make sure the percentages dont fall below 0%
     p = (cs_1(pct[0]) + cs_2(pct[1]) + cs_3(pct[2]) + cs_4(pct[3]) + cs_r(v_values[4] * 20) - criticality) * 10**-5 #calculates new reactivity using new withdrawn percentages
 
     p = max(p, -9093*10**-5) #limits reactivity to its minimum -9093pcm
@@ -340,7 +347,7 @@ def AFG_signals(p, limit, initial_values, result_queue):#, source): #used in sup
 # MULTITHREADING
 
 
-def off(): #shuts outputs when the counts are out of range of operation
+def off(initial_values): #shuts outputs when the counts are out of range of operation
     #instrument.write('OUTP1 OFF')
     #instrument.write('OUTP2 OFF')
     #keithley_2450_A.write(':OUTP OFF')
@@ -348,10 +355,17 @@ def off(): #shuts outputs when the counts are out of range of operation
     #keithley_2450_C.write(':OUTP OFF')
     #keithley_220.write('????')
     #keithley_236.write('????')
+    counts=initial_values[0]
+    current = 100*10**-12 / (5*10**3) * counts
     print('WARNING: Counts/Power/time limit reached.')
-    time.sleep(1)
-    keithley_command(100e-12)
-    afg_command(1000)
+    i=0
+    while i<10:
+        counts /= 2
+        current /= 2
+        keithley_command(current)
+        afg_command(counts)
+        i+=1
+        time.sleep(1)
 
 def threadings(): # initial thread only used when in subcritical state; reads values of SALMAO and CARAPAU
     if __name__ == "__main__":
@@ -546,8 +560,11 @@ ld_list = []
 k_value_list = []
 times_k = []
 period = []
+global scram_time
+scram_time = 0
 
 def simulation(source, criticality, stoptime, limit):
+    global scram_time
     activate_instruments()
     time.sleep(10)
     cont = True
@@ -569,6 +586,7 @@ def simulation(source, criticality, stoptime, limit):
     threading.Thread(target=get_raspberry_output_thread, args=(remote_host, remote_port, username, password, result_queue), daemon=True).start() # Start the thread that will fetch Raspberry Pi output asynchronously
     time.sleep(1) #important so that the queue already has a value when the loop begins
     scram = False
+    scram_time_noted = False
     while 10 < initial_values[0] < 10**15 and time.time()-t4 < stoptime:
         k_list = [k_value]*5 #to store the values of consecutive k's, in order to do the average and reduce noise influence
         k_value = round(root_mean_squared(k_list), 5)
@@ -636,6 +654,9 @@ def simulation(source, criticality, stoptime, limit):
             max_index = min(101, len(n))
             period.append(tau(n[-max_index:-1], times[-max_index:-1], k_value)) #use last 100 values to calculate period
             new_k, scram, state_vector = k(v_values=carapau, criticality=criticality, rasp_output=raspberry_output, scram=scram, state_vector=state_vector) #new k calculated with the function k
+            if scram==True and scram_time_noted==False:
+                scram_time=time.time()-t4
+                scram_time_noted = True
             del k_list[0]
             k_list = k_list + [new_k] # now the list of k's includes the new k, will do this for new k's while the cycle iterates
             k_value = round(root_mean_squared(k_list), 5)
@@ -738,7 +759,7 @@ def simulation(source, criticality, stoptime, limit):
             ld_list.append(0.1012)
 
             
-    off() #shuts off the instruments after the loop ends"""
+    off(initial_values) #shuts off the instruments after the loop ends"""
     
 
 
@@ -948,10 +969,27 @@ def simulation(source, criticality, int_time, stop_time): ### This is a simulati
     off() #shuts off the instruments after the loop ends
 """
 
-simulation(source=2, criticality=9093, stoptime=2700 , limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
+simulation(source=2, criticality=9093, stoptime=60 , limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
 
 current = 100*10**-12/5000*np.array(n)
 data(times, n, current, k_value_list, period, salmao, truta, t_ciclo) #save data into csv files
 
+from scipy.integrate import odeint
 
+def dSdt(t, S):
+    y, v_y = S
+    dSdt = [v_y, 1/m_rod*(0.5*c_d*p_water*A_rod*v_y**2-(m_rod-p_water*V_rod)*g) ]
+    return dSdt
 
+y_0 = 0.588 #m
+v_y0 = 0 #initial conditions for the first mode
+
+t_list = np.arange(scram_time, times[-1], 0.001) #sets the number of laps taken
+S_0 = (y_0, v_y0)
+sol = odeint(dSdt, y0=S_0, t=t_list, tfirst=True)
+
+plt.plot(t_list, sol.T[0], label='range kutta')
+plt.plot(times, position_list, label='taylor, h=0.08')
+plt.ylim(0, 0.6)
+plt.legend()
+plt.show()
