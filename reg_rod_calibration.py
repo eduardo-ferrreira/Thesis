@@ -162,25 +162,55 @@ reg_rod_rpi = [0,20.2,29.8,44.9,60.2,75.4,100]#
 reactivity_rpi = [0,81,142,233,299,324,331]
 
 reg_rod = [0,20,30,45,60,75,100]
+#integral_reactivity2 = [0,85,149,241,307,334,346]
 
 cs_1 = CubicSpline(reg_rod_rpi, reactivity_rpi)
 cs_2 = CubicSpline(reg_rod, integral_reactivity)
+#cs_3 = CubicSpline(reg_rod, integral_reactivity2)
+#print(integral_reactivity, cs_2(0))
 
 x=np.linspace(0,100,1000)
 cs_1_list = []
 cs_2_list = []
+#cs_3_list = []
 
 for i in range(len(x)):
     cs_1_list.append(cs_1(x[i]))
-    cs_2_list .append(cs_2(x[i]))
+    cs_2_list.append(cs_2(x[i]))
+#    cs_3_list.append(cs_3(x[i]))
 
 plt.figure(figsize=(10,6))
 plt.plot(x, cs_2_list, label='fissionist')
 plt.plot(x, cs_1_list, label='rpi')
+#plt.plot(x, cs_3_list, label='rpi')
 plt.scatter(reg_rod[1:], integral_reactivity[1:])
 plt.scatter(reg_rod_rpi[1:], reactivity_rpi[1:])
 plt.xlim(0,100)
 plt.ylim(0,350)
 plt.legend()
+plt.xlabel('Rod position (%)')
+plt.ylabel(r'$\rho$ (pcm)')
 plt.savefig('rod_calibration.pdf', dpi=600, bbox_inches='tight')
 plt.show()
+
+fig, ax1 = plt.subplots(figsize=(10,6))
+color = 'tab:red'
+ax1.set_xlabel('$t$ (s)')
+ax1.set_ylabel('Power (W)', color='k')
+ax1.set_yscale('log')
+line1, = ax1.plot(t, p, color=color, label='Power')
+ax1.tick_params(axis='y', labelcolor='k')
+ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+color = 'tab:blue'
+ax2.set_ylabel('$k_{eff}$', color='k')  # we already handled the x-label with ax1
+line2, = ax2.plot(t, k, color='b', label='$k_{eff}$')
+ax2.set_ylim(0.99950, 1.004)
+line3 = ax2.axhline(y=1, xmin=0, xmax=max(t), color='tab:gray', linestyle='--', label='$k_{eff}=1$')
+ax2.tick_params(axis='y', labelcolor='k')
+# Combine legends
+lines = [line1, line2, line3]
+labels = [line.get_label() for line in lines]
+ax1.legend(lines, labels, loc='upper left')
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.savefig('power_rod_calib.pdf', dpi=600, bbox_inches='tight')
+#plt.show()
