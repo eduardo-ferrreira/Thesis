@@ -1,5 +1,5 @@
-#code by Luís and Eduardo
-#CTN, October 18th 2024
+#code by Luis and Eduardo
+#CTN, October 2024
 
 #Packages used
 import numpy as np
@@ -71,6 +71,7 @@ cs_r = CubicSpline(x,yr)
 
 #df = pd.read_csv('rod_calibration.csv')
 #mininimo, maximo = df['min'], df['max'] #min and max values of voltage in carapau for rods at 0% and 100%
+
 #Functions
 def function(url_string): #Removes the unwanted strings from the Yokogawa Values converting them into floats
     assert type(url_string) == str
@@ -102,14 +103,14 @@ def rod_drop(state_vector, scram_list):  #taylor method to simulate the rod drop
     t=time.time()
     h=0.001 #time step
     j=0
-    while j*h < 0.01: #average cycle time in scram routine (without reading the values from yokogawa)
+    while j*h < 0.1: # limit time in supercritical cycle
         y_values = state_vector[::2]  #y0_1, y0_2, y0_3, y0_4
         vy_values = state_vector[1::2]  #vy0_1, vy0_2, vy0_3, vy0_4
         updated_state = []
         for i in range(4):
             if scram_list[i]==True: 
                 dydt = vy_values[i]
-                dvydt = 1/m_rod*(0.5*c_d*p_water*A_rod*vy_values[i]**2-(m_rod-p_water*V_rod)*g) #rod falling in water differential equation
+                dvydt = -g + 1/m_rod*p_water*V_rod*g #1/m_rod*(0.5*c_d*p_water*A_rod*vy_values[i]**2-(m_rod-p_water*V_rod)*g) #rod falling in water differential equation #-g + 1/m_rod*p_water*V_rod*g
                 new_y = y_values[i]+ h*dydt
                 new_vy = vy_values[i] + h*dvydt
                 if new_y <= 0:
@@ -125,8 +126,8 @@ def rod_drop(state_vector, scram_list):  #taylor method to simulate the rod drop
         state_vector=updated_state
         j+=1
 
-    while abs(time.time() - t) < 0.01: #this condition ensures that this function takes 0.01 seconds
-        continue
+    #while abs(time.time() - t) < 0.1: #this condition ensures that this function takes 0.01 seconds
+        #continue
         
     return updated_state  #state vector with positions and velocities
 
@@ -158,7 +159,6 @@ def continuation(counts, k, source, time, ld):#, result_queue):
         counts = source*(1-k**(n+time/ld))/(1-k) #next iteration of the geometric sum
     return counts
 
-
 def tau(counts, dt, k): #reactor period
     if len(counts)>11:
         N0 = sum(counts[0:5])/5 #averaging the first 5 values of counts list
@@ -174,16 +174,14 @@ def Inhour(T, k):
     L = l/k
     a = 0
     for i in range(len(beta)):
-        a += (beta[i]/(1+Lambda[i]*T))
+        a += (beta[i]/( 1+Lambda[i]*T))
     return L/T + a
 
 def root_mean_squared(x): #gives RMS of a list
     assert type(x) == list
     return (sum(list(map(lambda y: y**2, x)))/len(x))**.5
 
-#global t_scram
 def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
-    #global t_scram
     scram_list = [False] * 4  #default no scram
     rod_indices = {'20':[0, 1, 2, 3], '19':[1, 2, 3], '18':[0, 2, 3], '17':[0, 1, 3],  #dictionary with outputs of importances from raspberry associated
                    '16':[0, 1, 2], '15':[2, 3], '14':[1, 3], '13':[0, 3], '12':[1, 2], #to the index of the rod that drops
@@ -191,7 +189,6 @@ def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
 
     if not scram:
         state_vector = [v_values[i//2]/5*y0_rod if i%2 == 0 else 0 for i in range(8)] #creates a vector with positions y and velocity vy of each rod based on carapau readings
-        #fall_list[0]=state_vector[0]
     if rasp_out in rod_indices:
         for i in rod_indices[rasp_out]:
             scram_list[i] = True #sets scram state of the rods that the raspberry signalized
@@ -199,7 +196,6 @@ def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
         scram = True #scram state is now true so the rods positions based on carapau readings will be ignored
     else:
         scram=False
-    #print(state_vector[0])
     pct = [state_vector[i*2]/y0_rod*100 if scram_list[i] else v_values[i]*20 for i in range(4)] #new withdrawn percentages if scram as occurred
     for i in range(len(pct)):
         if pct[i]<=0:
@@ -207,9 +203,10 @@ def safety_actions(rasp_out, criticality, v_values, scram, state_vector):
     p = (cs_1(pct[0]) + cs_2(pct[1]) + cs_3(pct[2]) + cs_4(pct[3]) + cs_r(v_values[4] * 20) - criticality) * 10**-5 #calculates new reactivity using new withdrawn percentages
 
     p = max(p, -9093*10**-5) #limits reactivity to its minimum -9093pcm
+    #print(p)
     return p, scram, state_vector
 
-##########################################################################################################################################
+###########################
 # INSTRUMENTS COMMANDS
 
 def activate_instruments(): #using SCPI commands 
@@ -229,7 +226,6 @@ def activate_instruments(): #using SCPI commands
     instrument.write('SOUR2:VOLT:LEV:IMM:AMPL 5VPP')
     instrument.write('SOUR2:VOLT:LEV:IMM:OFFS 2.5V')
     instrument.write('OUTP2 ON')
-
     #keithley_2450_A.write('*RST')
     #keithley_2450_B.write('*RST')
     #keithley_2450_C.write('*RST')
@@ -241,13 +237,13 @@ def activate_instruments(): #using SCPI commands
     keithley_2450_A.write('SOUR:CURR:DEL:AUTO OFF')
     keithley_2450_B.write('SOUR:CURR:DEL:AUTO OFF')
     keithley_2450_C.write('SOUR:CURR:DEL:AUTO OFF')
-    keithley_2450_A.write('SOURce:CURRent:READ:BACK ON')
-    keithley_2450_B.write('SOURce:CURRent:READ:BACK ON')
-    keithley_2450_C.write('SOURce:CURRent:READ:BACK ON')
+    #keithley_2450_A.write('SOURce:CURRent:READ:BACK ON')
+    #keithley_2450_B.write('SOURce:CURRent:READ:BACK ON')
+    #keithley_2450_C.write('SOURce:CURRent:READ:BACK ON')
     time.sleep(2)
-    #keithley_2450_A.write('SOURce:CURRent:VLIM 21')
-    #keithley_2450_B.write('SOURce:CURRent:VLIM 21')
-    #keithley_2450_C.write('SOURce:CURRent:VLIM 21')
+    keithley_2450_A.write('SOURce:CURRent:VLIM 21')
+    keithley_2450_B.write('SOURce:CURRent:VLIM 21')
+    keithley_2450_C.write('SOURce:CURRent:VLIM 21')
     time.sleep(2)
     keithley_2450_A.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
     keithley_2450_B.write(':ROUT:TERM REAR')  # Set the output terminals to the rear panels
@@ -257,7 +253,7 @@ def activate_instruments(): #using SCPI commands
     keithley_2450_B.write(':OUTP ON')  # Turn on the output
     keithley_2450_C.write(':OUTP ON')  # Turn on the output
     time.sleep(5)
-    ###############################################################################
+    ###########################
     # for keithley 220
 
     #keithley_220.write('D0X') #Display current source
@@ -270,7 +266,7 @@ def activate_instruments(): #using SCPI commands
     #keithley_236.write('N1X') #Operate (set to programmed value)
     #keithley_236.write('F1,1X') #source current measure voltage
     #keithley_236.write('L10,0X') #voltage range 10V
-    ###############################################################################
+    ###########################
     time.sleep(5)
     instrument.write('SOUR1:FREQ 20Hz')
     instrument.write('SOUR2:FREQ 20Hz')
@@ -281,8 +277,6 @@ def afg_command(counts): #for CH1 and CH2
     if counts > 50000:
         instrument.write('SOUR1:FREQ 50000 Hz') #writes in the afg the value of the counts
         instrument.write('SOUR2:FREQ 50000 Hz')
-        #instrument.write('SOUR1:FREQ '+str(30000)+'Hz') #writes in the afg the value of the counts given by the coefficients_solver
-        #instrument.write('SOUR2:FREQ '+str(30000)+'Hz')
     else:
         instrument.write('SOUR1:FREQ '+str(counts)+'Hz') #writes in the afg the value of the counts
         instrument.write('SOUR2:FREQ '+str(counts)+'Hz')
@@ -299,7 +293,7 @@ def keithley_command(current):
     global last_update_time
     current = float('{:.2e}'.format(current)) #exponential format with two decimal places
     if time.time() - last_update_time > 0.35:
-        if current <=5e-12:
+        """if current <=5e-12:
             #
             keithley_2450_A.write(f':SOUR:CURR 5e-12')  #set the source current to desired value
             keithley_2450_B.write(f':SOUR:CURR 5e-12')  #set the source current to desired value
@@ -310,7 +304,11 @@ def keithley_command(current):
             keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
             keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value 
-                #last_update_time = time.time()
+                #last_update_time = time.time()"""
+        if current < 200e-4:
+            keithley_2450_A.write(f':SOUR:CURR {current}')  #set the source current to desired value
+            keithley_2450_B.write(f':SOUR:CURR {current}')  #set the source current to desired value
+            keithley_2450_C.write(f':SOUR:CURR {current}')  #set the source current to desired value 
         else:
             keithley_2450_A.write(':SOUR:CURR 200-6')  #set the source current to 135uA so that it doesnt surpass log lin specs
             keithley_2450_B.write(':SOUR:CURR 200-6')  
@@ -338,25 +336,18 @@ def AFG_signals(p, limit, initial_values, result_queue):#, source): #used in sup
         continue
     result_queue.put(initial_values) #multithreading
 
-##########################################################################################################################################
+###########################
 # MULTITHREADING
 
 
 def off(initial_values): #shuts outputs when the counts are out of range of operation
-    #instrument.write('OUTP1 OFF')
-    #instrument.write('OUTP2 OFF')
-    #keithley_2450_A.write(':OUTP OFF')
-    #keithley_2450_B.write(':OUTP OFF')
-    #keithley_2450_C.write(':OUTP OFF')
-    #keithley_220.write('????')
-    #keithley_236.write('????')
     counts=initial_values[0]
     current = 100*10**-12 / (5*10**3) * counts
     print('WARNING: Counts/Power/time limit reached.')
     i=0
     while i<10:
-        counts /= 2
-        current /= 2
+        counts /= 1.1
+        current /= 1.1
         keithley_command(current)
         afg_command(counts)
         i+=1
@@ -442,7 +433,7 @@ def threadings1(p, limit, initial_values):# source, command): #when in supercrit
     results.append(result_queue1.get()) #last value of the results list is the list calculated by coefficients_solver 
     return results
 
-##################################################################################################################################
+###########################
 # SSH AND RASPBERRY
 
 def execute_remote_file(remote_host, remote_port, username, password, command):
@@ -453,7 +444,6 @@ def execute_remote_file(remote_host, remote_port, username, password, command):
     try:
         ssh.connect(remote_host, port=remote_port, username=username, password=password) #connect to the remote server
         stdin, stdout, stderr = ssh.exec_command(command) #execute command
-        #print("stdout" + stdout)
         for line in stdout:
             bit_value = line.strip()
             return bit_value #get the output bit value
@@ -487,7 +477,7 @@ def get_raspberry_output(remote_host, remote_port, username, password):#, result
     return output
     #result_queue.put(output) #multithreading
 
-###########################################################################################################################################
+###########################
 #SAVING DATA 
 
 def data(time, counts, current, k, period, salmao, truta, t_ciclo): #save data to CSV file to then open with a notebook
@@ -512,7 +502,7 @@ def data(time, counts, current, k, period, salmao, truta, t_ciclo): #save data t
                         'CH1_SALMAO', 'CH2_SALMAO', 'CH1_TRUTA', 'CH2_TRUTA', 'CH3_TRUTA', 't cycle'])  # Write header
         writer.writerows(zip(time, counts, current, k, period, salmao[0], salmao[1], truta[0], truta[1], truta[2], t_ciclo)) # Write rows of lists
 
-########################################################################################################################################
+###########################
 #MAIN FUNCTION
 
 t_initial = time.time() 
@@ -531,16 +521,13 @@ ld_list = []
 k_value_list = []
 times_k = []
 period = []
-global scram_time
-scram_time = 0
-#t_fall = [0]
 
 def simulation(source, criticality, stoptime, limit):
     global scram_time
     activate_instruments()
     time.sleep(10)
     cont = True
-    counts = 11 #counts associated to all bars at 0%
+    counts = 24 #counts associated to all bars at 0%
     k_value = 1 - source/counts #k asssociated at 11 counts
     scram=False
     state_vector = [0,0,0,0,0,0,0,0]  # State vector for the rods
@@ -574,10 +561,9 @@ def simulation(source, criticality, stoptime, limit):
             if time.time()-t4>stoptime:
                 break
             
-            if scram==False:
-                z = threadings() #yokogawa readings
-                carapau = z[0] #CARAPAU readings
-                del carapau[-1] #deleting last value from CARAPAU because it's not used 
+            z = threadings() #yokogawa readings
+            carapau = z[0] #CARAPAU readings
+            del carapau[-1] #deleting last value from CARAPAU because it's not used 
 
             if not result_queue.empty(): 
                 raspberry_output = result_queue.get() #checks raspberry 24 bits. has raspberry output every 3-4 cycles  
@@ -640,7 +626,7 @@ def simulation(source, criticality, stoptime, limit):
         previous_values = [counts]*100 #will be used to calculate the period
         cont = False
         scram=False
-        c=time.time()
+        d=time.time()
         e = time.time()
 
         while cont == False and initial_values[0] < 10**15: #Second cycle supercritical state.
@@ -658,10 +644,9 @@ def simulation(source, criticality, stoptime, limit):
             carapau=z[0]
             del carapau[-1]
             del p[0]
-            #if scram == True:
-                #t_fall.append(time.time()-c)
             new_p, scram, state_vector = safety_actions(raspberry_output, criticality, carapau, scram, state_vector)
-            p.append(new_p)          
+            p.append(new_p) 
+                  
             salmao[0].append(z[1][0]) #salmao ch1 readings
             salmao[1].append(z[1][1]) 
             truta[0].append(z[2][0]) #truta readings
@@ -678,7 +663,7 @@ def simulation(source, criticality, stoptime, limit):
             p_value = round(sum(p)/len(p) * 10**5) #reactivity given in pcm
             max_index = min(101, len(n))
             period.append(tau(n[-max_index:-1], times[-max_index:-1], k_value)) #use last 100 values to calculate period
-            print(f'p: {p_value}, Counts: {initial_values[0]}, I:{current}, RaspPi Output: {raspberry_output}, Time passed: {(time.time()-t4)/60}')
+            print(f'p: {p_value}, Counts: {'{:.2e}'.format(initial_values[0])}, I:{current}, RaspPi Output: {raspberry_output},  Scram: {scram}, Time passed: {(time.time()-t4)/60}')
             initial_values = initial_values1
 
             if time.time()-e > 0.3: #send k values to status monitor every 0.3s
@@ -692,7 +677,6 @@ def simulation(source, criticality, stoptime, limit):
                 else:
                     cont = False
                     cont_list.append(cont) 
-            #del times[0]
             
             h = 0.0001 #Taylor method being used here to compensate the time spent in threadings. predict how the initial_values list has evolved during the time spent at threadings.
             i = 0 
@@ -706,15 +690,16 @@ def simulation(source, criticality, stoptime, limit):
             k_value_list.append(k_value)
             ld_list.append(0.1012)
 
-    off(initial_values) #shuts off the instruments after the loop ends"""
+    off(initial_values) #shuts off the instruments after the loop ends"""   
 
-simulation(source=2, criticality=9093, stoptime=1800, limit=0.1)#, int_time=1, stop_time=10000) #why source=2?
+simulation(source=2, criticality=9093, stoptime=20, limit=0.125) #why source=2?
 
 current = 100*10**-12/5000*np.array(n)
 data(times, n, current, k_value_list, period, salmao, truta, t_ciclo) #save data into csv files
 
-filepath=r'C:/Users/eduardo.ferreira/Documents/rod_position.csv'
-with open(filepath, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['position'])  # Write header
-        writer.writerows(zip(fall_list)) # Write rows of lists
+if len(fall_list)>0:
+    filepath=r'C:/Users/eduardo.ferreira/Documents/rod_position.csv'
+    with open(filepath, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['position'])  # Write header
+            writer.writerows(zip(fall_list)) # Write rows of lists
